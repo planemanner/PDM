@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
-from basicblocks import ResBlock, make_attn, Downsample, Upsample, SpatialTransformer, MultiHeadSelfAttention, TimestepEmbedSequential, TimeStepResBlock
-from utils import get_timestep_embedding, TimeStep2Sinusoid, zero_module
+from basicblocks import Downsample, Upsample, SpatialTransformer, MultiHeadSelfAttention, TimestepEmbedSequential, TimeStepResBlock
+from utils import TimeStep2Sinusoid, zero_module
 
 class UNetModel(nn.Module):
     """

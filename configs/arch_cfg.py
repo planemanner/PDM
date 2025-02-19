@@ -50,3 +50,33 @@ unet_cfg = {"middle_channels":128,
             "attn_type": 'vanilla',
             "attn_resolutions": [16, 8],
             "resamp_with_conv": True}
+
+ddpm_cfg = {"clip_denoised": True,
+            "log_every_t": 0, 
+            "image_size": 256,
+            "in_channels": 3,
+            "use_ema": True,
+            "v_posterior": 0.0,
+            "original_elbo_weight": 0.0,
+            "l_simple_weight": 1.0,
+            "timesteps": 1000,
+            "linear_start": 1e-4,
+            "linear_end": 2e-2}
+
+lddpm_cfg = {"clip_denoised": True,
+            "log_every_t": 0, 
+            "image_size": 256,
+            "in_channels": 3,
+            "use_ema": True,
+            "v_posterior": 0.0,
+            "original_elbo_weight": 0.0,
+            "l_simple_weight": 1.0,
+            "timesteps": 1000,
+            "linear_start": 1e-4,
+            "linear_end": 2e-2, 
+            # conditions : ['concat', 'crossattn', 'none']
+            "condition": 'none',
+            "n_cond_time_steps": 1,
+            "scale_factor": 1.0}
+
+pipeline_cfg = {"sampler": 'lddim'}

@@ -93,6 +93,11 @@ class CrossAttention(nn.Module):
         return self.dropout(self.out_proj(output))
     
 if __name__ == "__main__":
+    bsz = 8
+    ids = torch.round(torch.linspace(0, 1000 - 1, 1)).long()
+    ts = torch.full((bsz, ), 2)
+    print(ids[ts])
+
     pass
     # q_dim, con_dim, n_heads, dim_head = 32, 64, 4, 64
     # bsz, q_len, c_len = 4, 16, 32

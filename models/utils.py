@@ -3,6 +3,12 @@ import numpy as np
 import math
 from torch import nn
 from abc import abstractmethod
+from typing import TypedDict, List
+from PIL import Image
+
+class BatchDict(TypedDict):
+    images: List[Image.Image]
+    texts : List[str]
 
 class AbstractDistribution:
     def sample(self):

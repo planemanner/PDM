@@ -1,17 +1,19 @@
-from torch import nn
-import torch
 from utils import DiagonalGaussianDistribution
-from typing import TypedDict, List
-from PIL import Image
-from taming.modules.losses.vqperceptual import LPIPS, NLayerDiscriminator
-import pytorch_lightning as pl
 from decoder import Decoder
 from encoder import Encoder
 
 import torch
 import torch.nn as nn
+from typing import TypedDict, List
+from PIL import Image
+from taming.modules.losses.vqperceptual import LPIPS, NLayerDiscriminator, hinge_d_loss, vanilla_d_loss, weights_init, adopt_weight
+import pytorch_lightning as pl
 
-from taming.modules.losses.vqperceptual import *  # TODO: taming dependency yes/no?
+# from taming.modules.losses.vqperceptual import *  # TODO: taming dependency yes/no?
+
+class BatchDict(TypedDict):
+    images: List[Image.Image]
+    texts : List[str]
 
 class LPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_start, logvar_init=0.0, kl_weight=1.0, pixelloss_weight=1.0,
@@ -121,10 +123,6 @@ class LPIPSWithDiscriminator(nn.Module):
                    }
             return d_loss, log
         
-class BatchDict(TypedDict):
-    images: List[Image.Image]
-    texts : List[str]
-
 class AutoEncoder(pl.LightningModule):
     def __init__(self, cfg, colorize_nlabels=None, monitor=None, ignore_keys:List[str]=[]):
         super().__init__()
