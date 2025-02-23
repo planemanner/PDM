@@ -6,7 +6,7 @@ from einops import rearrange, repeat
 from contextlib import contextmanager
 from torchvision.utils import make_grid
 from tqdm import tqdm
-from utils import extract_into_tensor, noise_like, LitEma, DiffusionWrapper, make_beta_schedule, BatchDict
+from utils import extract_into_tensor, noise_like, LitEma, make_beta_schedule, BatchDict
 
 class DDPM(nn.Module):
     # classic DDPM with Gaussian diffusion, in image space
