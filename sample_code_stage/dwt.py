@@ -58,19 +58,21 @@ class HaarWaveletTransform2D:
 
 if __name__ == "__main__":
     # Initialize transform
-    wavelet = HaarWaveletTransform2D()
+    # wavelet = HaarWaveletTransform2D()
 
-    # Dummy input tensor (batch=2, channels=3, height=64, width=64)
-    x = torch.randn(2, 3, 64, 64)
+    # # Dummy input tensor (batch=2, channels=3, height=64, width=64)
+    # x = torch.randn(2, 3, 64, 64)
 
-    # Perform DWT
-    LL, LH, HL, HH = wavelet.dwt(x)
-    print(f"LL shape: {LL.shape}, LH shape: {LH.shape}, HL shape: {HL.shape}, HH shape: {HH.shape}")
+    # # Perform DWT
+    # LL, LH, HL, HH = wavelet.dwt(x)
+    # print(f"LL shape: {LL.shape}, LH shape: {LH.shape}, HL shape: {HL.shape}, HH shape: {HH.shape}")
 
-    # Perform IDWT
-    x_reconstructed = wavelet.idwt(LL, LH, HL, HH)
-    print(f"Reconstructed shape: {x_reconstructed.shape}")
+    # # Perform IDWT
+    # x_reconstructed = wavelet.idwt(LL, LH, HL, HH)
+    # print(f"Reconstructed shape: {x_reconstructed.shape}")
 
-    # Check reconstruction error
-    reconstruction_error = torch.norm(x - x_reconstructed) / torch.norm(x)
-    print(f"Reconstruction error: {reconstruction_error:.6f}")
+    # # Check reconstruction error
+    # reconstruction_error = torch.norm(x - x_reconstructed) / torch.norm(x)
+    # print(f"Reconstruction error: {reconstruction_error:.6f}")
+    x = [i for i in range(100)]
+    print(x[::2])

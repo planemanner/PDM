@@ -2,7 +2,7 @@ from torch import nn
 import lightning as L
 from typing import List, Union, Optional
 from common_utils import get_module
-
+import torch
 
 class StableDiffusion(L.LightningModule):
     def __init__(self, unet_cfg, sampler_cfg, vae_cfg, conditioner_cfg=None):
@@ -15,6 +15,7 @@ class StableDiffusion(L.LightningModule):
         self.conditioner = get_module(conditioner_cfg)
     
     def forward(self, x):
+        # Training 목적 ! Yes.
         pass
 
     def training_step(self, batch, batch_idx):
@@ -23,13 +24,14 @@ class StableDiffusion(L.LightningModule):
     def validation_step(self, *args, **kwargs):
         return super().validation_step(*args, **kwargs)
     
-    def generate(self, x, cond=None):
-        pass
+    @torch.no_grad()
+    def generate(self, x=None, cond=None):
+        # Conceptual Flow.
+        posterior = self.vae.encode(x)
+        latent_var = posterior.sample()
+        denoised = self.sampler(self.unet, latent_var, cond)
+        decoded = self.vae.decode(denoised)
+        return decoded
 
     def log_images(self):
         pass
-
-    def progressive_sampling(self):
-        pass
-
-    
