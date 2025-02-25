@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from typing import Tuple 
 
 class DDIMSampler(nn.Module):
     def __init__(self, n_steps:int=1000, linear_start: float=1e-4, linear_end: float=2e-2):
@@ -23,20 +24,20 @@ class DDIMSampler(nn.Module):
         x0_hat = (xt - self.sqrt_one_minus_alphas_cumprod[t] * pred_eps) / self.alphas_cumprod[t]
         return x0_hat
     
-    def get_xt(self, x0: torch.Tensor, t: int, value_clip:bool=True):
+    def get_xt(self, x0: torch.Tensor, t: int):
         eps = torch.randn_like(x0, device=x0.device)
         return self.sqrt_alphas_cumprod[t] * x0 + self.sqrt_one_minus_alphas_cumprod[t] * eps
 
-    def from_xt_to_xt_1(self, xt: torch.Tensor, t:int, ) -> torch.Tensor:
+    def from_xt_to_xt_1(self, xt: torch.Tensor, t:int, value_clip: bool=True) -> torch.Tensor:
         pass
 
-    def sampling(self, model, latent_var=None, condition=None):
+    def sampling(self, model, desired_shape: Tuple[int], latent_var: torch.Tensor=None, condition=None):
         """
         model : UNet
-        input_image : 
-        Deterministic Sampling 
+        desired_shape : Tuple of int, (batch_size, channels, height, widths)
         """
-        pass
+        xT = torch.randn(desired_shape, device=self.device)
+
 
 if __name__ == "__main__":
 
