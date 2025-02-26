@@ -34,7 +34,7 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
 
     def forward(self, x, emb, context=None):
         for layer in self:
-            if isinstance(layer, TimestepBlock):
+            if isinstance(layer, TimeStepResBlock):
                 x = layer(x, emb)
             elif isinstance(layer, SpatialTransformer):
                 x = layer(x, context)
@@ -107,13 +107,15 @@ class CrossAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.constant = 1 / math.sqrt(dim_head)
 
-    def forward(self, x: torch.Tensor, context: torch.Tensor=None):
+    def forward(self, x: torch.Tensor, context=None):
         # context is the text  
         b, x_len, dim_q = x.shape
         _, con_len, dim_kv = context.shape
+
         if context is None:
             context = x
-        q = self.q_embed(x.tranpose(1, 2))
+        
+        q = self.q_embed(x)
         # k, v shapes : (b, s, n_head * dim_head)
         k, v = torch.chunk(self.kv_embed(context), 2, dim=-1)
 
@@ -123,15 +125,15 @@ class CrossAttention(nn.Module):
 
         # sim shape : (b, n_head, x_len, dim_head) X (b, n_head, dim_head, con_len) 
         # -> (b, n_head, x_len, con_len)
-        sim = q @ k.tranpose(-1, -2)
+        sim = q @ k.transpose(-1, -2)
         sim *= self.constant
 
         sim = F.softmax(sim, dim=-1)
         # (b, n_head, x_len, con_len) X (b, n_head, con_len, dim_head) 
         # -> (b, n_head, x_len, dim_head)
         output = sim @ v
-        output = output.contiguous().transpose(1, 2).view(b, x_len, dim_q)
-        return self.out_proj(output)
+        output = output.contiguous().transpose(1, 2).reshape(b, x_len, -1)
+        return self.dropout(self.out_proj(output))
 
 class SpatialAttention(nn.Module):
     # Single Head
@@ -178,6 +180,7 @@ class MultiHeadSelfAttention(nn.Module):
         self.dim_head = dim_head
         self.constant = 1.0 / math.sqrt(dim_head)
         self.norm = nn.GroupNorm(32, in_channels, eps=1e-6)
+        
         # feedforward
         # I don't know why Stable Diffusion authors apply the dropout in here.
         self.ff = nn.Sequential(*[nn.Linear(n_heads * dim_head, in_channels),
@@ -186,7 +189,8 @@ class MultiHeadSelfAttention(nn.Module):
     def forward(self, x, causal_mask=None):
         # x : (batch_size, sequence_length, feature_dim)
         residue = x
-        x = self.norm(x)
+        x = self.norm(x.transpose(1, 2)).transpose(1,2)
+        
         bsz, s_len, x_dim = x.shape
         # q, k, v : (bsz, s_len, n_heads * dim_head)
         q, k ,v = torch.chunk(self.qkv_embeds(x), 3, dim=-1)
@@ -209,11 +213,11 @@ class MultiHeadSelfAttention(nn.Module):
         attn = F.softmax(attn, dim=-1)
         # (bsz, n_heads, s_len, s_len) X (bsz, n_heads, s_len, dim_head) -> (bsz, n_heads, s_len, dim_head)
         out = attn @ v 
-        out = out.transpose(1, 2).view(bsz, s_len, self.n_heads * self.dim_head)
+        out = out.transpose(1, 2).contiguous().view(bsz, s_len, self.n_heads * self.dim_head)
         return residue + self.ff(out)
 
 class Upsample(nn.Module):
-    def __init__(self, in_channels, with_conv):
+    def __init__(self, in_channels, with_conv: bool=True):
         super().__init__()
         self.with_conv = with_conv
         if self.with_conv:
@@ -228,9 +232,76 @@ class Upsample(nn.Module):
         if self.with_conv:
             x = self.conv(x)
         return x
+
+class ConvFFN(nn.Module):
+    def __init__(self, in_channels: int, hidden: int):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, hidden, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(hidden, in_channels, kernel_size=3, stride=1, padding=1)
+
+    def forward(self, x):
+        output = self.conv1(x)
+        return self.conv2(F.silu(output))
+
+class WaveletDownSample(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        self.register_filters(in_channels)
+        self.ffn = ConvFFN(in_channels, in_channels)
+        self.in_channels = in_channels
         
+    def register_filters(self, in_channels):
+        low_filter = torch.tensor([1.0, 1.0]) / torch.sqrt(torch.tensor(2.0))
+        high_filter = torch.tensor([1.0, -1.0]) / torch.sqrt(torch.tensor(2.0))
+        LL = torch.outer(low_filter, low_filter)
+        LH = torch.outer(low_filter, high_filter)
+        HL = torch.outer(high_filter, low_filter)
+        HH = torch.outer(high_filter, high_filter)
+        dwt_filter = torch.stack([LL, LH, HL, HH]).unsqueeze(1).repeat(in_channels, 1, 1, 1)
+        self.register_buffer('dwt_filter', dwt_filter)
+    
+    def forward(self, x):
+        b, c, h, w = x.shape
+        avg_feat = F.adaptive_avg_pool2d(x, (h//2, w//2))
+        gate_weights = F.sigmoid(self.ffn(avg_feat))
+        y = F.conv2d(x, self.dwt_filter, stride=2, groups=self.in_channels)
+        y = y.view(b, c, 4, h // 2, w // 2)
+        LL, LH, HL, HH = y[:, :, 0, ...], y[:, :, 1, ...], y[:, :, 2, ...], y[:, :, 3, ...]
+        output = gate_weights * LL + gate_weights * LH + gate_weights * HL + gate_weights * HH
+        return output
+
+class WaveletUpSample(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        self.register_filters(in_channels)
+        # Since there is no clear explanation how to chunk the input features, I chunck the feature arbitrary way.
+        # When I think about the wavelet transform perspective, it is natural to use spatial kernel to get high pass and low pass results.
+        # Otherwise, each chunk can be the identity of x
+        self.splitter = nn.Conv2d(in_channels, in_channels * 4, kernel_size=3, bias=False, padding=1)
+        self.ffn = ConvFFN(in_channels, in_channels)
+        self.in_channels = in_channels
+        
+    def register_filters(self, in_channels):
+        low_filter = torch.tensor([1.0, 1.0]) / torch.sqrt(torch.tensor(2.0))
+        high_filter = torch.tensor([1.0, -1.0]) / torch.sqrt(torch.tensor(2.0))
+        LL = torch.outer(low_filter, low_filter)
+        LH = torch.outer(low_filter, high_filter)
+        HL = torch.outer(high_filter, low_filter)
+        HH = torch.outer(high_filter, high_filter)
+        dwt_filter = torch.stack([LL, LH, HL, HH]).unsqueeze(1).repeat(in_channels, 1, 1, 1)
+        self.register_buffer('dwt_filter', dwt_filter)
+    
+    def forward(self, x: torch.Tensor):
+        # The input feature is splitted into 4 chunks as the wavelet coefficients.
+        b, c, h, w = x.shape
+        LL, LH, HL, HH = torch.chunk(self.splitter(x), 4, dim=1)
+        gate_weights = F.sigmoid(self.ffn(x))
+        x = torch.cat([gate_weights * LL, gate_weights * LH, gate_weights * HL, gate_weights * HH], dim=1)
+        y = F.conv_transpose2d(x, self.dwt_filter, stride=2, groups=c)
+        return y
+      
 class Downsample(nn.Module):
-    def __init__(self, in_channels, with_conv):
+    def __init__(self, in_channels, with_conv:bool=True):
         super().__init__()
         self.with_conv = with_conv
         if with_conv:
@@ -274,7 +345,8 @@ class BasicTransformerBlock(nn.Module):
         self.norm2 = nn.LayerNorm(dim)
         self.norm3 = nn.LayerNorm(dim)
     
-    def forward(self, x, context=None):
+    def forward(self, x, context):
+        
         x = self.msa(self.norm1(x)) + x
         x = self.cross_attn(self.norm2(x), context) + x
         x = self.ff(self.norm3(x)) + x
@@ -284,7 +356,7 @@ class SpatialTransformer(nn.Module):
     def __init__(self, in_channels: int, n_heads: int, dim_head: int, dropout:float=0.0, depth: int=1, context_dim:int=128):
         super().__init__()
 
-        self.proj_in = nn.Conv2d(in_channels, n_heads * dim_head)
+        self.proj_in = nn.Conv2d(in_channels, n_heads * dim_head, kernel_size=1)
         self.norm = nn.GroupNorm(32, in_channels)
         self.former_blocks = nn.ModuleList([BasicTransformerBlock(n_heads * dim_head, n_heads, dim_head, dropout, context_dim) for _ in range(depth)])
         self.proj_out = zero_module(nn.Conv2d(n_heads * dim_head, in_channels, kernel_size=(1, 1)))
@@ -299,15 +371,17 @@ class SpatialTransformer(nn.Module):
         x = self.proj_in(x)
         # b, 
         x = x.view(b, self.n_heads * self.dim_head, h * w).transpose(1, 2)
+        
         for block in self.former_blocks:
-            # Why context is not updated ?
             x = block(x, context)
+
         x = x.transpose(1, 2).view(b, self.n_heads * self.dim_head, h, w)
         x = self.proj_out(x)
         return x + residue
 
 class TimeStepResBlock(TimestepBlock):
-    def __init__(self, in_channels, out_channels, emb_channels, use_scale_shift_norm:bool=False, dropout:float=0.0, up: bool=False, down: bool=False, use_conv:bool=False, eps=1e-6):
+    def __init__(self, in_channels, out_channels, emb_channels, dropout:float=0.0, 
+                 up: bool=False, down: bool=False, use_conv:bool=False, eps=1e-6):
         super().__init__()
 
         self.in_layers = nn.Sequential(*[nn.GroupNorm(32, in_channels, eps=eps),
@@ -315,7 +389,6 @@ class TimeStepResBlock(TimestepBlock):
                                          nn.Conv2d(in_channels, out_channels, 3, padding=1)])
     
         self.updown = up or down
-        self.use_scale_shift_norm = use_scale_shift_norm
 
         if up:
             self.h_upd = Upsample(in_channels, False)
@@ -327,7 +400,7 @@ class TimeStepResBlock(TimestepBlock):
             self.h_upd = self.x_upd = nn.Identity()
         
         self.emb_layers = nn.Sequential(nn.SiLU(),
-                                        nn.Linear(emb_channels, 2 * out_channels if use_scale_shift_norm else out_channels))
+                                        nn.Linear(emb_channels, out_channels))
         
         self.out_layers = nn.Sequential(
             nn.GroupNorm(32, out_channels, eps=eps),
@@ -359,21 +432,12 @@ class TimeStepResBlock(TimestepBlock):
         while emb_out.ndim < h.ndim:
             emb_out = emb_out[..., None]
 
-        if self.use_scale_shift_norm:
-            # What is the intention of authors ? Except LSUN, this part is not used.
-            out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
-            scale, shift = torch.chunk(emb_out, 2, dim=1)
-            h = out_norm(h) * (1 + scale) + shift
-            h = out_rest(h)
-        else:
-            h = h + emb_out
-            h = self.out_layers(h)
+        h = h + emb_out
+        h = self.out_layers(h)
 
         return self.skip_connection(x) + h
             
 if __name__ == "__main__":
-    bsz, query_len, key_len, dim_head, n_heads = 2, 16, 32, 64, 4
-    sample_query = torch.randn(bsz, query_len, n_heads, dim_head)
-    sample_key = torch.randn(bsz, key_len, n_heads, dim_head)
-    weight = sample_query @ sample_key.transpose(-1, -2)
-    print(weight.shape)
+    msa = MultiHeadSelfAttention(256, 4, 64)
+    sample_tensor = torch.randn((4, 16, 256))
+    msa(sample_tensor)

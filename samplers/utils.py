@@ -177,11 +177,16 @@ def make_beta_schedule(n_timestep, linear_start=1e-4, linear_end=2e-2) -> torch.
     # return betas.numpy()
 
 
-def make_ddim_timesteps(num_ddim_timesteps, num_ddpm_timesteps, verbose=True):
-    
-    c = num_ddpm_timesteps // num_ddim_timesteps
-    ddim_timesteps = np.asarray(list(range(0, num_ddpm_timesteps, c)))
-    
+def make_ddim_timesteps(ddim_discr_method, n_ddim_timesteps, n_ddpm_timesteps, verbose=True):
+    if ddim_discr_method == 'uniform':
+        c = n_ddpm_timesteps // n_ddim_timesteps
+        ddim_timesteps = np.asarray(list(range(0, n_ddpm_timesteps, c)))
+
+    elif ddim_discr_method == 'quad':
+        ddim_timesteps = ((np.linspace(0, np.sqrt(n_ddpm_timesteps * .8), n_ddim_timesteps)) ** 2).astype(int)
+    else:
+        raise NotImplementedError(f'There is no ddim discretization method called "{ddim_discr_method}"')
+
     # assert ddim_timesteps.shape[0] == num_ddim_timesteps
     # add one to get the final alpha values right (the ones from first scale to data during sampling)
     steps_out = ddim_timesteps + 1
@@ -204,5 +209,14 @@ def make_ddim_sampling_parameters(alphacums, ddim_timesteps, eta, verbose=True):
     return sigmas, alphas, alphas_prev
 
 
-
-print(make_ddim_timesteps(50, 1000))
+betas = make_beta_schedule(10)
+print(betas)
+# alphas = 1 - betas
+# alphas_cumprod = torch.cat((torch.Tensor([1.0,]), torch.cumprod(alphas, dim=0)[:-1]))
+# alphas_cumprod_np = np.cumprod(alphas.numpy(), axis=0)
+# alphas_cumprod_prev = np.append(1., alphas_cumprod_np)
+# n, = alphas_cumprod.shape
+# print(n)
+# print(torch.maximum(alphas_cumprod, torch.tensor([1.0])))
+# print(np.maximum(alphas_cumprod_np, 1))
+# print(alphas_cumprod_prev)

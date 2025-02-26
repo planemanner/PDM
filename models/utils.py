@@ -5,6 +5,7 @@ from torch import nn
 from abc import abstractmethod
 from typing import TypedDict, List
 from PIL import Image
+from torch.nn import functional as F
 
 class BatchDict(TypedDict):
     images: List[Image.Image]
@@ -134,11 +135,13 @@ class TimeStep2Sinusoid:
         self.log_const = math.log(const) / (embedding_dim // 2 - 1)
         self.exp_term = torch.exp(torch.arange(embedding_dim // 2, dtype=torch.float32) * - self.log_const)
 
-    def __call__(self, timesteps: torch.Tensor):
+    def __call__(self, timesteps: torch.IntTensor):
+        # timesteps should have the shape like (b, )
+        # b means the batch-size
         assert len(timesteps.shape) == 1
         self.exp_term = self.exp_term.to(timesteps.device)
         timesteps = timesteps.float()[:, None] * self.exp_term[None, :]
         emb = torch.cat([torch.sin(timesteps), torch.cos(timesteps)], dim=1)
         if self.embedding_dim % 2 == 1:  # zero pad
-            emb = torch.nn.functional.pad(emb, (0,1,0,0))
+            emb = F.pad(emb, (0,1,0,0))
         return emb
