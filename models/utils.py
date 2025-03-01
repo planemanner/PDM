@@ -70,6 +70,11 @@ class DiagonalGaussianDistribution(object):
     def mode(self):
         return self.mean
 
+def freeze_model(model: torch.nn.Module):
+
+    for m in model.parameters():
+        m.requires_grad = False
+
 
 def normal_kl(mean1, logvar1, mean2, logvar2) -> torch.Tensor:
     """

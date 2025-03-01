@@ -1,4 +1,4 @@
-from PDM.samplers.ddpm import DDPMSampler
+from ddpm import DDPMSampler
 import torch
 from tqdm import tqdm
 

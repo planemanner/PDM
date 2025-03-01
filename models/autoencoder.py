@@ -128,23 +128,24 @@ class AutoEncoder(pl.LightningModule):
         super().__init__()
         # DotDict form
         
-        self.encoder = Encoder(**cfg['encoder'])
-        self.decoder = Decoder(**cfg['decoder'])
+        self.encoder = Encoder(**cfg.encoder)
+        self.decoder = Decoder(**cfg.decoder)
 
-        self.quant_conv = torch.nn.Conv2d(2*cfg['encoder']["z_channels"], 2 * cfg['common']['embed_dim'], 1)
-        self.post_quant_conv = torch.nn.Conv2d(cfg['common']['embed_dim'], cfg['decoder']["z_channels"], 1)
+        self.quant_conv = torch.nn.Conv2d(2*cfg.encoder.z_channels, 2 * cfg.common.embed_dim, 1)
+        self.post_quant_conv = torch.nn.Conv2d(cfg.common.embed_dim, cfg.decoder.z_channels, 1)
         
         if colorize_nlabels is not None:
-            assert type(colorize_nlabels)==int
+            assert type(colorize_nlabels) == int
             self.register_buffer("colorize", torch.randn(3, colorize_nlabels, 1, 1))
+
         if monitor is not None:
             self.monitor = monitor
-        if cfg['common']['ckpt_path'] is not None:
-            self.init_from_ckpt(cfg['common']['ckpt_path'], ignore_keys=ignore_keys)
+        if cfg.common.ckpt_path is not None:
+            self.init_from_ckpt(cfg.common.ckpt_path, ignore_keys=ignore_keys)
         
-        self.loss = LPIPSWithDiscriminator(disc_start=cfg['loss_fn']['disc_start'], 
-                                           kl_weight=cfg['loss_fn']['kl_weight'], 
-                                           disc_weight=cfg['loss_fn']['disc_weight'])
+        self.loss = LPIPSWithDiscriminator(disc_start=cfg.loss_fn.disc_start, 
+                                           kl_weight=cfg.loss_fn.kl_weight, 
+                                           disc_weight=cfg.loss_fn.disc_weight)
 
     def init_from_ckpt(self, path:str, ignore_keys:List[str]):
         sd = torch.load(path, map_location="cpu")["state_dict"]
