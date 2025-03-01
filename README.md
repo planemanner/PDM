@@ -1,7 +1,7 @@
 # Implementation of Diffusion Probabilistic Model Made Slim, CVPR 2023
 - This is unofficial implementation repository.
-  - [Paper Link](https://openaccess.thecvf.com/content/CVPR2023/papers/Yang_Diffusion_Probabilistic_Model_Made_Slim_CVPR_2023_paper.pdf)
-- This paper adds and modifies wavelet layer and the number of channels for each layer so that most code of this repository is similar to [Stable Diffusion](https://github.com/CompVis/stable-diffusion).  
+  - [Paper Link](https://openaccess.thecvf.com/content/CVPR2023/papers/Yang_Diffusion_Probabilistic_Model_Made_Slim_CVPR_2023_paper.pdf) and [Stable Diffusion](https://github.com/CompVis/stable-diffusion)
+- This paper adds and modifies wavelet layer and the number of channels for each layer so that some code of this repository is similar to [Stable Diffusion](https://github.com/CompVis/stable-diffusion).  
 - For clarity and better readibility, I modified variable names and integrated modules.
 - Since num_timesteps_cond is always set to '1', all related legacy code blocks are removed.
 - Redundant or legacy parts are removed.
@@ -29,5 +29,10 @@ python main.py --stage diffusion --autoencoder_ckpt [AUTOENCODER PATH]
 - ...
 
 ## To do
-- Add conditioning module which is flexible
-- 
+- Add overall logging parts
+  - autoencoder
+  - diffusion
+- Add training step & generation part for Diffusion
+- Add inference code
+- Replace the UNet's Down & Up sample blocks with WaveletLayers.
+- Add distillation parts for 
