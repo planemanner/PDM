@@ -7,6 +7,7 @@ class DDPMSampler(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg # => DotDict Object
+        self.v_posterior = 0.0 # weight for choosing posterior variance as sigma = (1-v) * beta_tilde + v * beta
         self.register_precomputed_values()
 
     def register_precomputed_values(self):
@@ -15,6 +16,12 @@ class DDPMSampler(nn.Module):
         alphas_cumprod = torch.cumprod(alphas, dim=0)
         # for time step 't-1' case
         alphas_cumprod_prev = torch.cat((torch.Tensor([1.0]), alphas_cumprod[:-1]))
+
+        posterior_variance = (1 - self.v_posterior) * betas * (1. - alphas_cumprod_prev) / (
+                    1. - alphas_cumprod) + self.v_posterior * betas
+        lvlb_weights = betas ** 2 / (2 * posterior_variance * torch.sqrt(alphas) * (1 - alphas_cumprod))                
+        lvlb_weights[0] = lvlb_weights[1]
+
         self.register_buffer('betas', betas)
         self.register_buffer('alphas_cumprod', alphas_cumprod)
         self.register_buffer('one_over_alphas_cumprod', 1 / alphas_cumprod)
@@ -24,6 +31,7 @@ class DDPMSampler(nn.Module):
         self.register_buffer('sqrt_alphas_cumprod_prev', torch.sqrt(alphas_cumprod_prev))
         self.register_buffer('sqrt_one_minus_alphas_cumprod', torch.sqrt(1.0 - alphas_cumprod))
         self.register_buffer('sqrt_one_minus_alphas_cumprod_prev', torch.sqrt(1.0 - alphas_cumprod_prev))
+        self.register_buffer('lvlb_weights', lvlb_weights)
         
     def q_sample(self, x0:torch.FloatTensor, t: int) -> torch.Tensor:
         """
@@ -33,7 +41,7 @@ class DDPMSampler(nn.Module):
         sampling a x_{t} from the sampling distribution
         """
         eps = torch.randn_like(x0, device=x0.device)
-        return self.sqrt_alphas_cumprod[t] * x0 + self.sqrt_one_minus_alphas_cumprod[t] * eps
+        return self.sqrt_alphas_cumprod[t] * x0 + self.sqrt_one_minus_alphas_cumprod[t] * eps, eps
     
     def p_sample(self, model, xt, t, cond=None) -> torch.FloatTensor:
         """

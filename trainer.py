@@ -10,7 +10,8 @@ from data.dataset import Sketch2ImageDataModule, VAEDataModule
 from common_utils import DotDict
 from models.autoencoder import AutoEncoder
 
-def train_diffusion():
+def train_diffusion(seed: int=42):
+    L.seed_everything(seed)
     model = StableDiffusion(unet_cfg=unet_cfg.unet_config,
                             vae_cfg=autoencoder_cfg.autoencoder_config,
                             sampler_cfg=sampler_cfg.sampler_config,
@@ -20,7 +21,8 @@ def train_diffusion():
     trainer = L.Trainer(**trainer_cfg.trainer_diffusion_config)
     trainer.fit(model, data_module)
 
-def train_autoencoder():
+def train_autoencoder(seed: int=42):
+    L.seed_everything(seed)
     autoencoder = AutoEncoder(DotDict(autoencoder_cfg.autoencoder_config))
     data_module = VAEDataModule(DotDict(data_cfg.autoencoder_data_config))
 

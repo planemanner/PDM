@@ -31,7 +31,7 @@ class ImagePrompter(nn.Module):
         inputs = self.processor(images=prompt_images, return_tensors="pt")
         # 전처리된 이미지를 사용하여 이미지 특징 추출
         outputs = self.model.get_image_features(**inputs)
-        return outputs, prompt_images[0]  # 예시로 첫 번째 이미지를 반환
+        return outputs
 
 if __name__ == "__main__":
     prompter = ImagePrompter()

@@ -200,6 +200,7 @@ class DDPMSampler(nn.Module):
     #         params = params + [self.logvar]
     #     opt = torch.optim.AdamW(params, lr=lr)
     #     return opt
+    
     # @contextmanager
     # def ema_scope(self, context=None):
     #     if self.use_ema:
@@ -232,6 +233,7 @@ class DDPMSampler(nn.Module):
     #         print(f"Missing Keys: {missing}")
     #     if len(unexpected) > 0:
     #         print(f"Unexpected Keys: {unexpected}")    
+
     # def training_step(self, batch, batch_idx):
     #     loss, loss_dict = self.shared_step(batch)
 

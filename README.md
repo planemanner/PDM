@@ -29,10 +29,12 @@ python main.py --stage diffusion --autoencoder_ckpt [AUTOENCODER PATH]
 - ...
 
 ## To do
-- Add overall logging parts
+- Add overall logging parts !! (Critical Features)
   - autoencoder
   - diffusion
-- Add training step & generation part for Diffusion
-- Add inference code
 - Replace the UNet's Down & Up sample blocks with WaveletLayers.
-- Add distillation parts for 
+- Add distillation parts for Diffusion Model
+- Check hyperparameters 
+  - ema update period
+  - validation period
+- Check all Device Parts
