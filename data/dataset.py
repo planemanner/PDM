@@ -98,8 +98,8 @@ class Sketch2ImageDataset(Dataset):
         img = Image.open(img_path)
         sketch = Image.open(os.path.join(self.sketch_dir, file_name))
         
-        if self.transform:
-            transformed = self.transform(image=np.array(img), mask=np.array(sketch)) # Tensor in case of training
+        if self.tf:
+            transformed = self.tf(image=np.array(img), mask=np.array(sketch)) # Tensor in case of training
             img = transformed['image']
             img = self.totensor(self.normalization(img))
             sketch = transformed['mask']
@@ -180,5 +180,5 @@ class VAEDataModule(L.LightningDataModule):
     def train_dataloader(self):
         return DataLoader(self.train_set, batch_size=self.config.train.bsz)
     
-    def train_dataloader(self):
-        return DataLoader(self.test_set, batch_size=self.config.test.bsz)    
+    def test_dataloader(self):
+        return DataLoader(self.test_set, batch_size=self.config.test.bsz)

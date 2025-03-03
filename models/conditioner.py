@@ -34,7 +34,8 @@ class ImagePrompter(nn.Module):
         return outputs
 
 if __name__ == "__main__":
-    prompter = ImagePrompter()
+    cfg = {"model_name": "openai/clip-vit-base-patch32"}
+    prompter = ImagePrompter(cfg)
     url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     image = Image.open(requests.get(url, stream=True).raw)
 
@@ -42,4 +43,3 @@ if __name__ == "__main__":
 
     v, img = prompter(copied_images)
     print(v.shape)
-    
