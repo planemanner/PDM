@@ -91,3 +91,4 @@ if __name__ == '__main__':
   - Sampling
   - Multi-GPUs & Multi-Node
 - Update quantitative metrics for validation. (e.g., FID)
+- Add additional analysis tools with callback function (e.g., MLFlow)
