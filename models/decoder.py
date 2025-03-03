@@ -1,9 +1,10 @@
 from torch import nn
-from basicblocks import ResBlock, Upsample, make_attn
 from typing import List, Tuple
 from torch.nn import functional as F
 import torch
 import numpy as np
+
+from .basicblocks import ResBlock, Upsample, make_attn
 
 class Decoder(nn.Module):
     def __init__(self, out_channels:int, middle_channels: int, temb_ch: int=0, 

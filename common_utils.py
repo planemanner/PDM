@@ -6,6 +6,10 @@ from models.unet import UNetModel
 from models.autoencoder import AutoEncoder
 from models.conditioner import ImagePrompter
 import torch
+from typing import List
+from PIL import Image
+from torchvision.utils import make_grid
+import numpy as np
 
 def get_sampler(cfg):
     if cfg.sampler_type == 'ddim':
@@ -85,69 +89,36 @@ class EMAModel(nn.Module):
             if p.requires_grad:
                 ema_name = f'ema_{name}'
                 p.data.copy_(self.ema_params[ema_name].data)
-                
-"""
-import torch
-from torch import nn
 
-class LitEma(nn.Module):
-    def __init__(self, model, decay=0.9999, use_num_upates=True):
-        super().__init__()
-        if decay < 0.0 or decay > 1.0:
-            raise ValueError('Decay must be between 0 and 1')
+def min_max_normalize(tensor: torch.Tensor, eps: float = 1e-7):
+    """
+    Min-Max Normalize a batch of images in (B, C, H, W) format.
 
-        self.m_name2s_name = {}
-        self.register_buffer('decay', torch.tensor(decay, dtype=torch.float32))
-        self.register_buffer('num_updates', torch.tensor(0,dtype=torch.int) if use_num_upates
-                             else torch.tensor(-1,dtype=torch.int))
+    Args:
+        tensor (torch.Tensor): Input tensor of shape (B, C, H, W).
+        eps (float): Small value to prevent division by zero.
 
-        for name, p in model.named_parameters():
-            if p.requires_grad:
-                #remove as '.'-character is not allowed in buffers
-                s_name = name.replace('.','')
-                self.m_name2s_name.update({name:s_name})
-                self.register_buffer(s_name,p.clone().detach().data)
+    Returns:
+        torch.Tensor: Normalized tensor with values in range [0, 1].
+    """
+    B, C, H, W = tensor.shape  # (Batch, Channel, Height, Width)
 
-        self.collected_params = []
+    # Compute min and max per batch and channel
+    min_vals = tensor.amin(dim=(2, 3), keepdim=True)  # Shape: (B, C, 1, 1)
+    max_vals = tensor.amax(dim=(2, 3), keepdim=True)  # Shape: (B, C, 1, 1)
 
-    def forward(self,model):
-        decay = self.decay
+    # Normalize: (x - min) / (max - min)
+    normalized = (tensor - min_vals) / (max_vals - min_vals + eps)
 
-        if self.num_updates >= 0:
-            self.num_updates += 1
-            decay = min(self.decay,(1 + self.num_updates) / (10 + self.num_updates))
+    return normalized
 
-        one_minus_decay = 1.0 - decay
+def tensor2images(tensor_images: torch.FloatTensor) -> List[Image.Image]:
+    # tensor_images shape : (b, c, h, w)
+    normalized_tensors = min_max_normalize(tensor_images)
+    scaled_tensors = normalized_tensors * 255
+    return scaled_tensors
 
-        with torch.no_grad():
-            m_param = dict(model.named_parameters())
-            shadow_params = dict(self.named_buffers())
-
-            for key in m_param:
-                if m_param[key].requires_grad:
-                    sname = self.m_name2s_name[key]
-                    shadow_params[sname] = shadow_params[sname].type_as(m_param[key])
-                    shadow_params[sname].sub_(one_minus_decay * (shadow_params[sname] - m_param[key]))
-                else:
-                    assert not key in self.m_name2s_name
-
-    def copy_to(self, model):
-        m_param = dict(model.named_parameters())
-        shadow_params = dict(self.named_buffers())
-        for key in m_param:
-            if m_param[key].requires_grad:
-                m_param[key].data.copy_(shadow_params[self.m_name2s_name[key]].data)
-            else:
-                assert not key in self.m_name2s_name
-
-    def store(self, parameters):
-        
-        self.collected_params = [param.clone() for param in parameters]
-
-    def restore(self, parameters):
-        
-        for c_param, param in zip(self.collected_params, parameters):
-            param.data.copy_(c_param.data)
-
-
-"""
+def save_grid(tensor_images: torch.Tensor, save_path, nrow=4) -> None:
+    grid_image = make_grid(tensor_images, nrow=nrow)
+    grid_image = Image.fromarray(grid_image.cpu().detach().numpy().astype(np.uint8))
+    grid_image.save(save_path)

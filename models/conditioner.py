@@ -5,7 +5,7 @@ from transformers import CLIPProcessor, CLIPModel
 from PIL import Image
 from typing import List, Tuple
 import requests
-from utils import freeze_model
+from .utils import freeze_model
 
 class Conditioner(nn.Module, ABC):
     def __init__(self, condition_model):

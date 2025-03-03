@@ -1,4 +1,4 @@
-from dotdict import DotDict
+from .dotdict import DotDict
 
 sampler_config = {"sampler_type": "ddim",
                   "clip_denoised": True,

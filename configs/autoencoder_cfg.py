@@ -1,4 +1,4 @@
-from dotdict import DotDict
+from .dotdict import DotDict
 
 autoencoder_config = {"vae_type": "kl_vae",
                       "encoder": {'in_channels': 3,

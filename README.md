@@ -5,6 +5,10 @@
 - For clarity and better readibility, I modified variable names and integrated modules.
 - Since num_timesteps_cond is always set to '1', all related legacy code blocks are removed.
 - Redundant or legacy parts are removed.
+# Note
+- In current version, the autoencoder is not VQ-VAE. It is conventional variational auto-encoder.
+  - So, unlike original Stable Diffusion model, the autoencoder is trained without EMA update. 
+  - The Wavelet layers will be applied soon.
 
 # Requirements
 - Python version : > 3.9
@@ -21,20 +25,12 @@ python main.py --stage autoencoder
 ```sh
 python main.py --stage diffusion --autoencoder_ckpt [AUTOENCODER PATH]
 ```
-  
-## Inference
-- ...
-
-## Serving
-- ...
 
 ## To do
-- Add overall logging parts !! (Critical Features)
-  - autoencoder
-  - diffusion
 - Replace the UNet's Down & Up sample blocks with WaveletLayers.
 - Add distillation parts for Diffusion Model
-- Check hyperparameters 
-  - ema update period
-  - validation period
-- Check all Device Parts
+- Check the configuration combinations
+- Check whether this code base is actually working or not.
+  - Loading models and pipelines on GPUs
+  - Sampling
+  - Multi-GPUs & Multi-Node

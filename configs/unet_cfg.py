@@ -1,5 +1,5 @@
 # Following configuration values are referenced from Stable Diffusion Repo
-from dotdict import DotDict
+from .dotdict import DotDict
 
 unet_config = {"middle_channels":32,
                "in_channels": 3, # color
@@ -18,6 +18,7 @@ unet_config = {"middle_channels":32,
                "num_head_channels": 32,
                "resblock_updown": False,
                "lr":1e-4,
-               "mode": "train"}
+               "mode": "train",
+               "sample_save_dir": ""}
 
 unet_config = DotDict(unet_config)

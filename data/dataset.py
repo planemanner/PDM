@@ -6,10 +6,12 @@ from torch.utils.data import DataLoader, Dataset
 import pandas as pd
 from PIL import Image
 import numpy as np
-from typing import Tuple, Optional, List
+from typing import Tuple, List
 from transformers import PreTrainedTokenizer
-from data_utils import get_tf_for_sketch, get_tf_for_ae
 import torch
+from albumentations.pytorch import ToTensorV2
+
+from .data_utils import get_tf_for_sketch, get_tf_for_ae
 
 def load_img_list(root_dir):
     data_list = []
@@ -34,14 +36,17 @@ def check_pair(list_1:List[str], list_2:List[str]):
     return True
 
 class VAEDataset(Dataset):
-    def __init__(self, data_dir, transform=None):
+    def __init__(self, data_dir, transform, normalize_mean, normalize_std):
         self.img_list = load_img_list(data_dir)
         self.transform = transform
+        self.normalization = A.Normalize(mean=normalize_mean, std=normalize_std)
+        self.totensor = ToTensorV2()
 
     def __getitem__(self, idx: int) -> torch.FloatTensor:
         img = Image.open(self.img_list[idx])
-        if self.transform:
-            img = self.transform(image=np.array(img))['image']
+        img = self.transform(image=np.array(img))['image']
+        img = self.totensor(self.normalization(img))
+
         return img
     
     def __len__(self):
@@ -70,7 +75,10 @@ class ImageTextPairDataset(Dataset):
         return len(self.metadata)
     
 class Sketch2ImageDataset(Dataset):
-    def __init__(self, img_dir, sketch_dir, target_transform : A.BasicTransform, sketch_transform: A.BasicTransform):
+    def __init__(self, img_dir, sketch_dir, 
+                 transform : A.BasicTransform, 
+                 normalize_mean: List[float], normalize_std: List[float]):
+        
         # image and sketch must consist of a pair.
         self.img_list = load_img_list(img_dir)
         self.sketch_list = load_img_list(sketch_dir)
@@ -78,8 +86,9 @@ class Sketch2ImageDataset(Dataset):
         if not check_pair(self.img_list, self.sketch_list):
             raise FileNotFoundError('Image and sketch lists are not matched.')
 
-        self.tgt_tf = target_transform
-        self.sk_tf = sketch_transform
+        self.tf = transform
+        self.normalization = A.Normalize(mean=normalize_mean, std=normalize_std)
+        self.totensor = ToTensorV2()
 
     def __getitem__(self, idx) -> Tuple[torch.FloatTensor, Image.Image]:
         # I do not recommend you to use opencv to read image. 
@@ -90,9 +99,10 @@ class Sketch2ImageDataset(Dataset):
         sketch = Image.open(os.path.join(self.sketch_dir, file_name))
         
         if self.transform:
-            img = self.transform(image=img)['image'] # Tensor
-            sketch = self.transform(image=sketch)['image'] # PIL Image
-
+            transformed = self.transform(image=np.array(img), mask=np.array(sketch)) # Tensor in case of training
+            img = transformed['image']
+            img = self.totensor(self.normalization(img))
+            sketch = transformed['mask']
         return img, Image.fromarray(sketch)
 
     def __len__(self):
@@ -120,19 +130,22 @@ class Sketch2ImageDataModule(L.LightningDataModule):
 
     def setup(self, stage:str=None):
         if stage == 'fit':
-            img_tf, sketch_tf = get_tf_for_sketch(self.config.train)
+            tf = get_tf_for_sketch(self.config.train)
             self.train_set = Sketch2ImageDataset(self.config.train.img_dir, 
                                                  self.config.train.sketch_dir,
-                                                 target_transform=img_tf,
-                                                 sketch_transform=sketch_tf
+                                                 transform=tf,
+                                                 normalize_mean=self.config.train.normalize_mean,
+                                                 normalize_std=self.config.train.normalize_std
                                                  )
 
         if stage == 'test':
-            img_tf, sketch_tf = get_tf_for_sketch(self.config.test)
+            tf = get_tf_for_sketch(self.config.test)
             self.test_set = Sketch2ImageDataset(self.config.test.img_dir, 
                                                 self.config.test.sketch_dir,
-                                                target_transform=img_tf,
-                                                sketch_transform=sketch_tf)
+                                                transform=tf,
+                                                normalize_mean=self.config.test.normalize_mean,
+                                                normalize_std=self.config.test.normalize_std
+                                                )
     
     def train_dataloader(self):
         # num_workers, shuffle, and sampler are automatically set up by internal ways.
@@ -153,12 +166,16 @@ class VAEDataModule(L.LightningDataModule):
     
     def setup(self, stage: str):
         if stage == 'fit':
-            img_tf = get_tf_for_ae(self.config)
-            self.train_set = VAEDataset(self.config.train.img_dir, transform=img_tf)
+            tf = get_tf_for_ae(self.config.train)
+            self.train_set = VAEDataset(self.config.train.img_dir, transform=tf,
+                                        normalize_mean=self.config.train.normalize_mean,
+                                        normalize_std=self.config.train.normalize_std)
 
         if stage == 'test':
-            img_tf = get_tf_for_ae(self.config)
-            self.test_set = VAEDataset(self.config.test.img_dir, transform=img_tf)
+            tf = get_tf_for_ae(self.config.test)
+            self.test_set = VAEDataset(self.config.test.img_dir, transform=tf,
+                                        normalize_mean=self.config.test.normalize_mean,
+                                        normalize_std=self.config.test.normalize_std                                       )
     
     def train_dataloader(self):
         return DataLoader(self.train_set, batch_size=self.config.train.bsz)

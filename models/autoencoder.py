@@ -1,6 +1,6 @@
-from utils import DiagonalGaussianDistribution
-from decoder import Decoder
-from encoder import Encoder
+from .utils import DiagonalGaussianDistribution
+from .decoder import Decoder
+from .encoder import Encoder
 
 import torch
 import torch.nn as nn
@@ -140,6 +140,7 @@ class AutoEncoder(L.LightningModule):
 
         if monitor is not None:
             self.monitor = monitor
+
         if cfg.common.ckpt_path is not None:
             self.init_from_ckpt(cfg.common.ckpt_path, ignore_keys=ignore_keys)
         
@@ -236,6 +237,7 @@ class AutoEncoder(L.LightningModule):
         opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
                                     lr=lr, betas=(0.5, 0.9))
         return [opt_ae, opt_disc], []
+    
     
 if __name__ == "__main__":
     # Following disc compresses an image into 1/64 image shape and get scores.

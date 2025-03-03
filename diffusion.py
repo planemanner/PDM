@@ -1,11 +1,11 @@
 from typing import Optional, Union
 import lightning as L
 from PIL import Image
-from common_utils import get_module, disable_model_training, EMAModel
+from common_utils import get_module, disable_model_training, EMAModel, tensor2images, save_grid
 import torch
 from torch.nn import functional as F
 from typing import List
-from contextlib import contextmanager
+import os
 
 class StableDiffusion(L.LightningModule):
     def __init__(self, unet_cfg, vae_cfg, sampler_cfg, conditioner_cfg=None):
@@ -23,6 +23,8 @@ class StableDiffusion(L.LightningModule):
         
         if unet_cfg.mode == 'train':
             self.ema = EMAModel(self.unet)
+        
+        self.sample_save_dir = unet_cfg.sample_save_dir
 
     def training_step(self, batch, batch_idx):
         # images : List of float tensors
@@ -34,19 +36,24 @@ class StableDiffusion(L.LightningModule):
         noisy_inputs, labels = self.sampler.q_sample(z, t)
         pred_noises = self.unet(noisy_inputs, t, conds)
         loss = F.mse_loss(pred_noises, labels)
+        self.log('TRAIN_LOSS', loss.item(), prog_bar=True, on_step=True, on_epoch=True)
+        
         return loss
 
     def validation_step(self, batch, batch_idx):
-        # Get MSE LOSS 
         images, sketches = batch
         decoded = self.generate_sketch2image(sketches)
-        # 복원된 images 와 reference images 사이의 차이 기록
+
+        if batch_idx == 0 and self.global_rank == 0:
+            save_p = os.path.join(self.sample_save_dir, str(self.current_epoch).zfill(5))
+            save_grid(decoded, save_p)
 
     @torch.no_grad()
-    def generate_sketch2image(self, prompts: List[Image.Image]) -> Image.Image:
+    def generate_sketch2image(self, prompts: List[Image.Image]) -> torch.IntTensor:
         conds = self.conditioner(prompts)
         denoised_z = self.sampler.sampling(self.unet, conds.shape, conds, n_steps=200)
-        decoded = self.vae.decode(denoised_z)
+        decoded = self.vae.decode(denoised_z) # Tensor Images
+        decoded = tensor2images(decoded) # 8-bit tensors
         return decoded
 
     def configure_optimizers(self):
@@ -57,4 +64,4 @@ class StableDiffusion(L.LightningModule):
     
     def on_train_batch_end(self):
         # model ema update
-        pass
+        self.ema.copy2current(self.unet)

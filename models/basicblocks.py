@@ -3,8 +3,9 @@ from torch.nn import functional as F
 import torch
 import math
 from einops import rearrange
-from utils import zero_module
 from abc import abstractmethod
+
+from .utils import zero_module
 
 def make_attn(block_in, attn_type):
     if attn_type == 'vanilla':

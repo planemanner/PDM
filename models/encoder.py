@@ -1,8 +1,8 @@
 from torch import nn
-from basicblocks import ResBlock, Downsample, make_attn
 from typing import List, Tuple
 from torch.nn import functional as F
 
+from .basicblocks import ResBlock, Downsample, make_attn
 
 class Encoder(nn.Module):
     def __init__(self, in_channels:int, middle_channels: int, temb_ch: int, 
