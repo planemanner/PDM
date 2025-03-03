@@ -26,6 +26,62 @@ python main.py --stage autoencoder
 python main.py --stage diffusion --autoencoder_ckpt [AUTOENCODER PATH]
 ```
 
+## Inference
+- Inference 코드를 작성하여 모델을 사용하여 이미지를 생성합니다.
+- 예시:
+```python
+from models.autoencoder import AutoEncoder
+from models.unet import UNetModel
+from samplers.ddpm import DDPMSampler
+from configs import autoencoder_cfg, unet_cfg, sampler_cfg
+from common_utils import DotDict
+
+# Load models
+autoencoder = AutoEncoder(DotDict(autoencoder_cfg.autoencoder_config))
+unet = UNetModel(DotDict(unet_cfg.unet_config))
+sampler = DDPMSampler(DotDict(sampler_cfg.sampler_config))
+
+# Load checkpoints
+autoencoder.load_state_dict(torch.load('path/to/autoencoder/checkpoint.ckpt'))
+unet.load_state_dict(torch.load('path/to/unet/checkpoint.ckpt'))
+
+# Generate images
+generated_images = sampler.sampling(unet, image_shape=(batch_size, 3, 256, 256))
+```
+
+## Serving
+- Serving 코드를 작성하여 모델을 배포합니다.
+- 예시:
+```python
+from flask import Flask, request, jsonify
+from models.autoencoder import AutoEncoder
+from models.unet import UNetModel
+from samplers.ddpm import DDPMSampler
+from configs import autoencoder_cfg, unet_cfg, sampler_cfg
+from common_utils import DotDict
+
+app = Flask(__name__)
+
+# Load models
+autoencoder = AutoEncoder(DotDict(autoencoder_cfg.autoencoder_config))
+unet = UNetModel(DotDict(unet_cfg.unet_config))
+sampler = DDPMSampler(DotDict(sampler_cfg.sampler_config))
+
+# Load checkpoints
+autoencoder.load_state_dict(torch.load('path/to/autoencoder/checkpoint.ckpt'))
+unet.load_state_dict(torch.load('path/to/unet/checkpoint.ckpt'))
+
+@app.route('/generate', methods=['POST'])
+def generate():
+    data = request.json
+    batch_size = data.get('batch_size', 1)
+    generated_images = sampler.sampling(unet, image_shape=(batch_size, 3, 256, 256))
+    return jsonify({'generated_images': generated_images.tolist()})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+```
+
 ## To do
 - Replace the UNet's Down & Up sample blocks with WaveletLayers.
 - Add distillation parts for Diffusion Model
