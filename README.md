@@ -34,3 +34,4 @@ python main.py --stage diffusion --autoencoder_ckpt [AUTOENCODER PATH]
   - Loading models and pipelines on GPUs
   - Sampling
   - Multi-GPUs & Multi-Node
+- Update quantitative metrics for validation. (e.g., FID)
