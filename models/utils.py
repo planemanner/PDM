@@ -1,9 +1,12 @@
 import torch
 import numpy as np
 import math
-from typing import TypedDict, List
+from typing import TypedDict, List, TypeVar, Optional
 from PIL import Image
 from torch.nn import functional as F
+
+
+T = TypeVar('T', bound='DiagonalGaussianDistribution')
 
 class BatchDict(TypedDict):
     images: List[Image.Image]
@@ -30,24 +33,25 @@ class DiracDistribution(AbstractDistribution):
 
 class DiagonalGaussianDistribution(object):
     def __init__(self, parameters, deterministic=False):
-        self.parameters = parameters
         self.mean, self.logvar = torch.chunk(parameters, 2, dim=1)
         self.logvar = torch.clamp(self.logvar, -30.0, 20.0)
         self.deterministic = deterministic
         self.std = torch.exp(0.5 * self.logvar)
         self.var = torch.exp(self.logvar)
+        self.device = parameters.device
         if self.deterministic:
-            self.var = self.std = torch.zeros_like(self.mean).to(device=self.parameters.device)
+            self.var = self.std = torch.zeros_like(self.mean).to(device=self.device)
 
     def sample(self):
-        x = self.mean + self.std * torch.randn(self.mean.shape).to(device=self.parameters.device)
+        x = self.mean + self.std * torch.randn(self.mean.shape).to(device=self.device)
         return x
 
-    def kl(self, other=None):
+    def kl(self, other: Optional[T]=None) -> torch.FloatTensor:
         if self.deterministic:
             return torch.Tensor([0.])
         else:
             if other is None:
+                # What case ?
                 return 0.5 * torch.sum(torch.pow(self.mean, 2)
                                        + self.var - 1.0 - self.logvar,
                                        dim=[1, 2, 3])

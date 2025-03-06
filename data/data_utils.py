@@ -1,12 +1,12 @@
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
-def get_tf_for_sketch(config) -> A.BasicTransform:
+def get_tf_for_sketch(config, mode='train') -> A.BasicTransform:
     # prompt can be 'sketch', 'text', and e.t.c....
 
     resize = A.Resize(height=config.transform.resize_height, width=config.transform.resize_width)
 
-    if config.mode != 'test':
+    if mode != 'test':
         hflip = A.HorizontalFlip(p=config.transform.hflip)
         vflip = A.VerticalFlip(p=config.transform.vflip)
         rot90 = A.RandomRotate90(p=config.transform.rot90)
@@ -18,10 +18,10 @@ def get_tf_for_sketch(config) -> A.BasicTransform:
         tf = A.Compose([resize])
         return tf
 
-def get_tf_for_ae(config) -> A.BasicTransform:
+def get_tf_for_ae(config, mode='train') -> A.BasicTransform:
     resize = A.Resize(height=config.transform.resize_height, width=config.transform.resize_width)
 
-    if config.mode != 'test':
+    if mode != 'test':
         random_resized_crop = A.RandomResizedCrop(height=config.transform.resize_height, width=config.transform.resize_width, scale=(0.8, 1.0))
         hflip = A.HorizontalFlip(p=config.transform.hflip)
         vflip = A.VerticalFlip(p=config.transform.vflip)

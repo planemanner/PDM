@@ -43,9 +43,9 @@ class VAEDataset(Dataset):
         self.totensor = ToTensorV2()
 
     def __getitem__(self, idx: int) -> torch.FloatTensor:
-        img = Image.open(self.img_list[idx])
+        img = Image.open(self.img_list[idx]).convert('RGB')
         img = self.transform(image=np.array(img))['image']
-        img = self.totensor(self.normalization(img))
+        img = self.totensor(image=self.normalization(image=img)['image'])['image']
 
         return img
     
@@ -101,7 +101,7 @@ class Sketch2ImageDataset(Dataset):
         if self.tf:
             transformed = self.tf(image=np.array(img), mask=np.array(sketch)) # Tensor in case of training
             img = transformed['image']
-            img = self.totensor(self.normalization(img))
+            img = self.totensor(self.normalization(image=img))
             sketch = transformed['mask']
         return img, Image.fromarray(sketch)
 
@@ -130,7 +130,7 @@ class Sketch2ImageDataModule(L.LightningDataModule):
 
     def setup(self, stage:str=None):
         if stage == 'fit':
-            tf = get_tf_for_sketch(self.config.train)
+            tf = get_tf_for_sketch(self.config.train, mode='train')
             self.train_set = Sketch2ImageDataset(self.config.train.img_dir, 
                                                  self.config.train.sketch_dir,
                                                  transform=tf,
@@ -139,7 +139,7 @@ class Sketch2ImageDataModule(L.LightningDataModule):
                                                  )
 
         if stage == 'test':
-            tf = get_tf_for_sketch(self.config.test)
+            tf = get_tf_for_sketch(self.config.test, mode='test')
             self.test_set = Sketch2ImageDataset(self.config.test.img_dir, 
                                                 self.config.test.sketch_dir,
                                                 transform=tf,
@@ -166,13 +166,13 @@ class VAEDataModule(L.LightningDataModule):
     
     def setup(self, stage: str):
         if stage == 'fit':
-            tf = get_tf_for_ae(self.config.train)
+            tf = get_tf_for_ae(self.config.train, mode='train')
             self.train_set = VAEDataset(self.config.train.img_dir, transform=tf,
                                         normalize_mean=self.config.train.normalize_mean,
                                         normalize_std=self.config.train.normalize_std)
 
         if stage == 'test':
-            tf = get_tf_for_ae(self.config.test)
+            tf = get_tf_for_ae(self.config.test, mode='test')
             self.test_set = VAEDataset(self.config.test.img_dir, transform=tf,
                                         normalize_mean=self.config.test.normalize_mean,
                                         normalize_std=self.config.test.normalize_std                                       )

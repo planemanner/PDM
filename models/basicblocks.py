@@ -63,18 +63,19 @@ class ResBlock(nn.Module):
         
         if temb_channels > 0:
             self.temb_layer = nn.Linear(temb_channels, out_channels)
+        self.silu = nn.SiLU()
 
     def forward(self, x, temb=None):
         residue = self.residual_layer(x)
 
-        x = F.silu(self.groupnorm_1(x))
+        x = self.silu(self.groupnorm_1(x))
         x = self.conv_1(x)
         
         if temb is not None:
             # Auto Casted
-            x += self.temb_layer(F.silu(x))[:, :, None, None]
+            x = x + self.temb_layer(self.silu(x))[:, :, None, None]
 
-        x = F.silu(self.groupnorm_2(x))
+        x = self.silu(self.groupnorm_2(x))
         x = self.dropout(x)
         x = self.conv_2(x)
         return x + residue

@@ -111,4 +111,11 @@ class Decoder(nn.Module):
         h = self.conv_out(h)
         if self.tanh_out:
             h = torch.tanh(h)
-        return h        
+        return h
+
+if __name__ == "__main__":
+    pass
+    # decoder = Decoder(3, 128, 0, (1, 1, 2, 2, 4, 4))
+    # sample = torch.randn(4, 64, 8, 8)
+    # decoded = decoder(sample)
+    # print(decoded.shape)

@@ -1,6 +1,7 @@
 from torch import nn
 from typing import List, Tuple
 from torch.nn import functional as F
+import torch
 
 from .basicblocks import ResBlock, Downsample, make_attn
 
@@ -21,6 +22,7 @@ class Encoder(nn.Module):
         self.n_res_blocks = n_res_blocks
         
         curr_res = resolution
+        self.down = nn.ModuleList()
 
         for i in range(len(ch_mult)):
             block = nn.ModuleList()
@@ -50,9 +52,9 @@ class Encoder(nn.Module):
 
         self.mid = nn.Module()
         self.mid.block_1 = ResBlock(in_channels=block_in,
-                                       out_channels=block_in,
-                                       temb_channels=temb_ch,
-                                       dropout=dropout)
+                                    out_channels=block_in,
+                                    temb_channels=temb_ch,
+                                    dropout=dropout)
         
         self.mid.attn_1 = make_attn(block_in, attn_type=attn_type)
         self.mid.block_2 = ResBlock(in_channels=block_in,
@@ -93,12 +95,13 @@ class Encoder(nn.Module):
 
         # end
         h = self.norm_out(h)
-        h = F.sliu(h)
+        h = F.silu(h)
         h = self.conv_out(h)
         return h
                                                    
 if __name__ == "__main__":
-    pass
-# ch_mult=(1, 2, 4, 8)
-# in_ch_mult = (1,)+tuple(ch_mult)
-# print(in_ch_mult)
+    encoder = Encoder(3, 128, 0, (1, 1, 2, 2, 4, 4))
+    
+    sample = torch.randn(4, 3, 256, 256)
+    f = encoder(sample)
+    print(f.shape)

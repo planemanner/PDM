@@ -82,6 +82,12 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
 ```
 
+## Convert sharded checkpoint to consolidated checkpoint
+```bash
+cd lightning_logs/version_0/checkpoints
+python -m lightning.pytorch.utilities.consolidate_checkpoint epoch=0-step=3.ckpt
+```
+
 ## To do
 - Replace the UNet's Down & Up sample blocks with WaveletLayers.
 - Add distillation parts for Diffusion Model

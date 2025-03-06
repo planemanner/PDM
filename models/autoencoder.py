@@ -28,7 +28,7 @@ class LPIPSWithDiscriminator(nn.Module):
         self.perceptual_loss = LPIPS().eval()
         self.perceptual_weight = perceptual_weight
         # output log variance
-        self.logvar = nn.Parameter(torch.ones(size=()) * logvar_init)
+        self.logvar = nn.Parameter(torch.ones(size=(1, )) * logvar_init)
 
         self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
                                                  n_layers=disc_num_layers,
@@ -53,7 +53,7 @@ class LPIPSWithDiscriminator(nn.Module):
         d_weight = d_weight * self.discriminator_weight
         return d_weight
 
-    def forward(self, inputs, reconstructions, posteriors, optimizer_idx,
+    def forward(self, inputs, reconstructions, posteriors, opt_target,
                 global_step, last_layer=None, cond=None, split="train",
                 weights=None):
         
@@ -74,7 +74,7 @@ class LPIPSWithDiscriminator(nn.Module):
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
 
         # now the GAN part
-        if optimizer_idx == 0:
+        if opt_target == 'GEN_PART':
             # generator update
             if cond is None:
                 assert not self.disc_conditional
@@ -105,7 +105,7 @@ class LPIPSWithDiscriminator(nn.Module):
                    }
             return loss, log
 
-        if optimizer_idx == 1:
+        if opt_target == 'DISC_PART':
             # second pass for discriminator update
             if cond is None:
                 logits_real = self.discriminator(inputs.contiguous().detach())
@@ -128,6 +128,8 @@ class AutoEncoder(L.LightningModule):
         super().__init__()
         # DotDict form
         self.cfg = cfg
+        self.automatic_optimization = False
+
         self.encoder = Encoder(**cfg.encoder)
         self.decoder = Decoder(**cfg.decoder)
 
@@ -147,7 +149,7 @@ class AutoEncoder(L.LightningModule):
         self.loss = LPIPSWithDiscriminator(disc_start=cfg.loss_fn.disc_start, 
                                            kl_weight=cfg.loss_fn.kl_weight, 
                                            disc_weight=cfg.loss_fn.disc_weight)
-
+        
     def init_from_ckpt(self, path:str, ignore_keys:List[str]):
         sd = torch.load(path, map_location="cpu")["state_dict"]
         keys = list(sd.keys())
@@ -162,7 +164,7 @@ class AutoEncoder(L.LightningModule):
     def encode(self, x: torch.Tensor):
         # given x, this encodes the x into posterior mean and log variance 
         h = self.encoder(x)
-        moments = self.quant_conv(h)
+        moments = self.quant_conv(h) # Mean and Log var
         posterior = DiagonalGaussianDistribution(moments)
         return posterior
 
@@ -175,13 +177,6 @@ class AutoEncoder(L.LightningModule):
     def get_last_layer(self):
         return self.decoder.conv_out.weight
     
-    def get_image_inputs(self, batch: BatchDict, image_key='images'):
-        imgs = batch[image_key]
-        
-        assert imgs.ndim == 4, "You must give the input batch having shape : (b, c, h, w)"
-
-        return imgs
-    
     def forward(self, input, sample_posterior:bool = True):
         posterior = self.encode(input)
         if sample_posterior:
@@ -191,28 +186,37 @@ class AutoEncoder(L.LightningModule):
         dec = self.decode(z)
         return dec, posterior
     
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx):
         #  -> torch.Tensor | Mapping[str, Any] | None
-        imgs = self.get_image_inputs(batch)
-        reconstructions, posterior = self.forward(imgs)
         # ldm.modules.losses.LPIPSWithDiscriminator
-        if optimizer_idx == 0:
-            # train encoder, decoder
-            aeloss, log_dict_ae = self.loss(imgs, reconstructions, posterior, optimizer_idx, self.global_step, 
-                                            last_layer=self.get_last_layer(), split='train')
-            self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
-            return aeloss
-                    
-        if optimizer_idx == 1:
-            # train the discriminator
-            discloss, log_dict_disc = self.loss(imgs, reconstructions, posterior, optimizer_idx, self.global_step,
-                                                last_layer=self.get_last_layer(), split="train")
+        # train encoder, decoder
+        opt_ae, opt_disc = self.optimizers()
+        self.toggle_optimizer(opt_ae)
+        
+        reconstructions, posterior = self(batch)
+        aeloss, log_dict_ae = self.loss(batch, reconstructions, posterior, 'GEN_PART', self.global_step, 
+                                        last_layer=self.get_last_layer(), split='train')
+        self.manual_backward(aeloss)
+        opt_ae.step()
+        opt_ae.zero_grad()
+        self.untoggle_optimizer(opt_ae)
 
-            self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
-            return discloss
-                    
+        self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+        
+        self.toggle_optimizer(opt_disc)
+
+        discloss, log_dict_disc = self.loss(batch, reconstructions, posterior, 'DISC_PART', self.global_step,
+                                            last_layer=self.get_last_layer(), split="train")
+        self.manual_backward(discloss)
+        opt_disc.step()
+        opt_disc.zero_grad()
+        self.untoggle_optimizer(opt_disc)
+
+        self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+        
+        
     def validation_step(self, batch, batch_idx):
         inputs = self.get_input(batch, self.image_key)
         reconstructions, posterior = self(inputs)
@@ -226,20 +230,21 @@ class AutoEncoder(L.LightningModule):
         self.log_dict(log_dict_ae)
         self.log_dict(log_dict_disc)
         return self.log_dict
-                
+
     def configure_optimizers(self):
-        lr = self.cfg.lr
-        opt_ae = torch.optim.Adam(list(self.encoder.parameters())+
-                                  list(self.decoder.parameters())+
-                                  list(self.quant_conv.parameters())+
-                                  list(self.post_quant_conv.parameters()),
-                                  lr=lr, betas=(0.5, 0.9))
-        opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
-                                    lr=lr, betas=(0.5, 0.9))
-        return [opt_ae, opt_disc], []
+        lr = self.cfg.common.lr
+        opt1 = torch.optim.Adam(list(self.encoder.parameters())+
+                               list(self.decoder.parameters())+
+                               list(self.quant_conv.parameters())+
+                               list(self.post_quant_conv.parameters()) + 
+                               list(self.loss.discriminator.parameters()),
+                               lr=lr, betas=(0.5, 0.9))
+        
+        opt2 = torch.optim.Adam(list(self.loss.discriminator.parameters()),
+                               lr=lr, betas=(0.5, 0.9))
+        return [opt1, opt2], []
     
     
 if __name__ == "__main__":
     # Following disc compresses an image into 1/64 image shape and get scores.
-    disc = NLayerDiscriminator()
-    print(disc)
+    pass
