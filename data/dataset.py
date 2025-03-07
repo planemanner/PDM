@@ -177,15 +177,19 @@ class VAEDataModule(L.LightningDataModule):
             self.train_set = VAEDataset(self.config.train.img_dir, transform=tf,
                                         normalize_mean=self.config.train.normalize_mean,
                                         normalize_std=self.config.train.normalize_std)
-
+            
+            tf = get_tf_for_ae(self.config.test, mode='test')
+            self.val_set = VAEDataset(self.config.test.img_dir, transform=tf,
+                                        normalize_mean=self.config.test.normalize_mean,
+                                        normalize_std=self.config.test.normalize_std)
         if stage == 'test':
             tf = get_tf_for_ae(self.config.test, mode='test')
             self.test_set = VAEDataset(self.config.test.img_dir, transform=tf,
                                         normalize_mean=self.config.test.normalize_mean,
-                                        normalize_std=self.config.test.normalize_std                                       )
+                                        normalize_std=self.config.test.normalize_std)
     
     def train_dataloader(self):
         return DataLoader(self.train_set, batch_size=self.config.train.bsz)
     
-    def test_dataloader(self):
-        return DataLoader(self.test_set, batch_size=self.config.test.bsz)
+    def val_dataloader(self):
+        return DataLoader(self.val_set, batch_size=self.config.test.bsz)
