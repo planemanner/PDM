@@ -81,7 +81,7 @@ class EMAModel(nn.Module):
             if p.requires_grad:
                 ema_name = f"ema_{name}"
                 # New Weight : m * w_{prev} + (1-m) * a_{cur}
-                self.ema_params[ema_name].mul_(decay).add_(1.0 - decay * p) 
+                self.ema_params[ema_name].mul_(decay).add_((1.0 - decay) * p) 
 
     @torch.no_grad()
     def copy2current(self, model:nn.Module):

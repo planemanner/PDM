@@ -13,18 +13,20 @@ class StableDiffusion(L.LightningModule):
         
         self.unet = get_module(unet_cfg, 'unet')
         self.vae_model = get_module(vae_cfg, 'vae') # The vae model should be already trained on image data.
+        self.vae_model.load_state_dict(torch.load(vae_cfg.common.ckpt_path))
         self.conditioner = get_module(conditioner_cfg, 'conditioner') # If it is None, this Diffusion model is to be trained without any condition
         self.sampler = get_module(sampler_cfg, 'sampler')
 
         disable_model_training(self.conditioner)
         disable_model_training(self.vae_model)
 
-        self.n_timesteps = sampler_cfg.timesteps
+        self.n_timesteps = sampler_cfg.n_steps
         
-        if unet_cfg.mode == 'train':
-            self.ema = EMAModel(self.unet)
+        # if unet_cfg.mode == 'train':
+        #     self.ema = EMAModel(self.unet)
         
         self.sample_save_dir = unet_cfg.sample_save_dir
+        self.lr = unet_cfg.lr
 
     def training_step(self, batch, batch_idx):
         # images : List of float tensors
@@ -57,11 +59,11 @@ class StableDiffusion(L.LightningModule):
         return decoded
 
     def configure_optimizers(self):
-        lr = 2e-06 # Generally used.
+        lr = self.lr # Generally used.
         params = self.unet.parameters()
         opt = torch.optim.AdamW(params, lr=lr)
         return opt
     
-    def on_train_batch_end(self):
-        # model ema update
-        self.ema.copy2current(self.unet)
+    # def on_train_batch_end(self, outputs, batch, batch_idx, unused=0):
+    #     # model ema update
+    #     self.ema.copy2current(self.unet)

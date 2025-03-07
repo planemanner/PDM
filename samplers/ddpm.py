@@ -33,7 +33,7 @@ class DDPMSampler(nn.Module):
         self.register_buffer('sqrt_one_minus_alphas_cumprod_prev', torch.sqrt(1.0 - alphas_cumprod_prev))
         self.register_buffer('lvlb_weights', lvlb_weights)
         
-    def q_sample(self, x0:torch.FloatTensor, t: int) -> torch.Tensor:
+    def q_sample(self, x0:torch.FloatTensor, t: torch.LongTensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Mathematical Expression 
         => x_{t} ~ q(x_{t}|x_{0}) = N(x_{t};\sqrt{\bar{\alpha}_{t}}x_{0}, \sqrt{1-\bar{\alpha}_{t}}I)
@@ -41,7 +41,7 @@ class DDPMSampler(nn.Module):
         sampling a x_{t} from the sampling distribution
         """
         eps = torch.randn_like(x0, device=x0.device)
-        return self.sqrt_alphas_cumprod[t] * x0 + self.sqrt_one_minus_alphas_cumprod[t] * eps, eps
+        return self.sqrt_alphas_cumprod[t][:, None, None, None] * x0 + self.sqrt_one_minus_alphas_cumprod[t][:, None, None, None] * eps, eps
     
     def p_sample(self, model, xt, t, cond=None) -> torch.FloatTensor:
         """
@@ -55,7 +55,7 @@ class DDPMSampler(nn.Module):
         """
         pred_eps = model(xt, t, cond)
         noise = torch.randn_like(xt, device=xt.device)
-        return self.one_over_alphas[t] * (xt - self.betas[t] / self.sqrt_one_minus_alphas_cumprod[t] * pred_eps) + torch.sqrt(self.betas[t]) * noise
+        return self.one_over_alphas[t][:, None, None, None] * (xt - self.betas[t][:, None, None, None] / self.sqrt_one_minus_alphas_cumprod[t] * pred_eps) + torch.sqrt(self.betas[t][:, None, None, None]) * noise
     
     def sampling(self, model, image_shape: Tuple[int], cond=None, clamp:bool=True):
         xt = torch.randn(image_shape, device=self.device)

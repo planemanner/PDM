@@ -10,7 +10,7 @@ from data.dataset import Sketch2ImageDataModule, VAEDataModule
 from models.autoencoder import AutoEncoder
 from lightning.pytorch.callbacks import ModelCheckpoint
 
-def train_diffusion(save_dir, seed: int=42, save_period: int=5):
+def train_diffusion(save_dir, seed: int=42, save_period: int=50):
     L.seed_everything(seed)
     model = StableDiffusion(unet_cfg=unet_cfg.unet_config,
                             vae_cfg=autoencoder_cfg.autoencoder_config,
@@ -20,20 +20,20 @@ def train_diffusion(save_dir, seed: int=42, save_period: int=5):
     data_module = Sketch2ImageDataModule(data_cfg.diffusion_data_config)
     ckpt_callback = ModelCheckpoint(
         dirpath=save_dir,
-        filename="{epoch:02d}",
+        filename="{epoch:03d}",
         every_n_epochs=save_period
     )
 
     trainer = L.Trainer(**trainer_cfg.trainer_diffusion_config, callbacks=[ckpt_callback])
     trainer.fit(model, data_module)
 
-def train_autoencoder(save_dir, seed: int=42, save_period: int=5):
+def train_autoencoder(save_dir, seed: int=42, save_period: int=50):
     L.seed_everything(seed)
     autoencoder = AutoEncoder(autoencoder_cfg.autoencoder_config)
     data_module = VAEDataModule(data_cfg.autoencoder_data_config)
     ckpt_callback = ModelCheckpoint(
         dirpath=save_dir,
-        filename="{epoch:02d}",
+        filename="{epoch:03d}",
         every_n_epochs=save_period
     )
     trainer = L.Trainer(**trainer_cfg.trainer_autoencoder_config, callbacks=[ckpt_callback])

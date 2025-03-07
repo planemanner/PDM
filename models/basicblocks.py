@@ -112,7 +112,9 @@ class CrossAttention(nn.Module):
     def forward(self, x: torch.Tensor, context=None):
         # context is the text  
         b, x_len, dim_q = x.shape
-        _, con_len, dim_kv = context.shape
+        if context is not None:
+            if context.ndim == 2:
+                context = context[:, None, :]
 
         if context is None:
             context = x

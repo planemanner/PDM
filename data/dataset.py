@@ -90,20 +90,20 @@ class Sketch2ImageDataset(Dataset):
         self.normalization = A.Normalize(mean=normalize_mean, std=normalize_std)
         self.totensor = ToTensorV2()
 
-    def __getitem__(self, idx) -> Tuple[torch.FloatTensor, Image.Image]:
+    def __getitem__(self, idx) -> Tuple[torch.FloatTensor, np.ndarray]:
         # I do not recommend you to use opencv to read image. 
         # Since there is some unrecognizable error (it is hard to find some point to debug), imread function raises an assertion error (Sometimes.).
         img_path = self.img_list[idx]
         file_name = os.path.basename(img_path)
-        img = Image.open(img_path)
-        sketch = Image.open(os.path.join(self.sketch_dir, file_name))
+        img = Image.open(img_path).convert('RGB')
+        sketch = Image.open(os.path.join(self.sketch_dir, file_name)).convert('RGB')
         
         if self.tf:
             transformed = self.tf(image=np.array(img), mask=np.array(sketch)) # Tensor in case of training
             img = transformed['image']
-            img = self.totensor(self.normalization(image=img))
+            img = self.totensor(image=self.normalization(image=img)['image'])['image']
             sketch = transformed['mask']
-        return img, Image.fromarray(sketch)
+        return img, sketch
 
     def __len__(self):
         return len(self.img_list)
