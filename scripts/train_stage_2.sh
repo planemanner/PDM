@@ -1,7 +1,7 @@
 #!/bin/bash
 
-autoencoder_ckpt=/path/to/autoencoder/checkpoint.ckpt
-save_dir=/path/to/save/diffusion/model
+autoencoder_ckpt=/data/smddls77/StableDiffusion/epoch=499.ckpt
+save_dir=/data/smddls77/StableDiffusion/UNet
 
 python ../main.py --stage diffusion \
                   --autoencoder_ckpt $autoencoder_ckpt \

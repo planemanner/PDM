@@ -28,7 +28,7 @@ class LPIPSWithDiscriminator(nn.Module):
         self.perceptual_loss = LPIPS().eval()
         self.perceptual_weight = perceptual_weight
         # output log variance
-        self.logvar = nn.Parameter(torch.ones(size=(1, )) * logvar_init)
+        self.logvar = nn.Parameter(torch.ones(size=()) * logvar_init)
 
         self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
                                                  n_layers=disc_num_layers,
@@ -183,6 +183,7 @@ class AutoEncoder(L.LightningModule):
             z = posterior.sample()
         else:
             z = posterior.mode()
+        
         dec = self.decode(z)
         return dec, posterior
     
@@ -190,7 +191,10 @@ class AutoEncoder(L.LightningModule):
         #  -> torch.Tensor | Mapping[str, Any] | None
         # ldm.modules.losses.LPIPSWithDiscriminator
         # train encoder, decoder
+        # https://lightning.ai/docs/pytorch/stable/notebooks/lightning_examples/basic-gan.html
+        # 위 주소 참고해서 변경
         opt_ae, opt_disc = self.optimizers()
+        
         self.toggle_optimizer(opt_ae)
         
         reconstructions, posterior = self(batch)
@@ -199,22 +203,22 @@ class AutoEncoder(L.LightningModule):
         self.manual_backward(aeloss)
         opt_ae.step()
         opt_ae.zero_grad()
-        self.untoggle_optimizer(opt_ae)
-
         self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
         self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
         
+        self.untoggle_optimizer(opt_ae)
+        
         self.toggle_optimizer(opt_disc)
 
-        discloss, log_dict_disc = self.loss(batch, reconstructions, posterior, 'DISC_PART', self.global_step,
+        discloss, log_dict_disc = self.loss(batch.detach(), reconstructions.detach(), posterior, 'DISC_PART', self.global_step,
                                             last_layer=self.get_last_layer(), split="train")
         self.manual_backward(discloss)
         opt_disc.step()
         opt_disc.zero_grad()
-        self.untoggle_optimizer(opt_disc)
 
         self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
         self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+        self.untoggle_optimizer(opt_disc)
         
         
     def validation_step(self, batch, batch_idx):

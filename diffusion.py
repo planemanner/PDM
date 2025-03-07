@@ -13,7 +13,10 @@ class StableDiffusion(L.LightningModule):
         
         self.unet = get_module(unet_cfg, 'unet')
         self.vae_model = get_module(vae_cfg, 'vae') # The vae model should be already trained on image data.
-        self.vae_model.load_state_dict(torch.load(vae_cfg.common.ckpt_path))
+        vae_state_dict = torch.load(vae_cfg.common.ckpt_path, map_location="cpu")
+        if "state_dict" in vae_state_dict:
+            vae_state_dict = vae_state_dict["state_dict"]        
+        self.vae_model.load_state_dict(vae_state_dict)
         self.conditioner = get_module(conditioner_cfg, 'conditioner') # If it is None, this Diffusion model is to be trained without any condition
         self.sampler = get_module(sampler_cfg, 'sampler')
 
@@ -21,21 +24,25 @@ class StableDiffusion(L.LightningModule):
         disable_model_training(self.vae_model)
 
         self.n_timesteps = sampler_cfg.n_steps
+        """
+        if unet_cfg.mode == 'train':
+            self.ema = EMAModel(self.unet)
+        """
         
-        # if unet_cfg.mode == 'train':
-        #     self.ema = EMAModel(self.unet)
-        
-        self.sample_save_dir = unet_cfg.sample_save_dir
         self.lr = unet_cfg.lr
+        self.sample_save_dir = unet_cfg.sample_save_dir
 
     def training_step(self, batch, batch_idx):
         # images : List of float tensors
         # sketches : List of PIL images.
-        images, sketches = batch
+        
+        images, sketches = batch      
         conds = self.conditioner(sketches)
         z = self.vae_model.encode(images).sample()
+        
         t = torch.randint(0, self.n_timesteps, (len(images), ), device=self.device).long()
         noisy_inputs, labels = self.sampler.q_sample(z, t)
+        
         pred_noises = self.unet(noisy_inputs, t, conds)
         loss = F.mse_loss(pred_noises, labels)
         self.log('TRAIN_LOSS', loss.item(), prog_bar=True, on_step=True, on_epoch=True)
@@ -47,15 +54,18 @@ class StableDiffusion(L.LightningModule):
         decoded = self.generate_sketch2image(sketches)
 
         if batch_idx == 0 and self.global_rank == 0:
-            save_p = os.path.join(self.sample_save_dir, str(self.current_epoch).zfill(5))
-            save_grid(decoded, save_p)
+            save_dir = os.path.join(self.sample_save_dir, str(self.current_epoch).zfill(3))
+            os.makedirs(save_dir, exist_ok=True)
+            save_grid(decoded, save_dir)
 
     @torch.no_grad()
-    def generate_sketch2image(self, prompts: List[Image.Image]) -> torch.IntTensor:
+    def generate_sketch2image(self, prompts: List[Image.Image], latent_shape: List[int]=[64, 32, 32]) -> torch.IntTensor:
         conds = self.conditioner(prompts)
-        denoised_z = self.sampler.sampling(self.unet, conds.shape, conds, n_steps=200)
-        decoded = self.vae.decode(denoised_z) # Tensor Images
+        latent_shape = [len(conds)] + latent_shape 
+        denoised_z = self.sampler.sampling(self.unet, latent_shape, conds, n_steps=200)
+        decoded = self.vae_model.decode(denoised_z) # Tensor Images
         decoded = tensor2images(decoded) # 8-bit tensors
+        
         return decoded
 
     def configure_optimizers(self):
@@ -63,7 +73,15 @@ class StableDiffusion(L.LightningModule):
         params = self.unet.parameters()
         opt = torch.optim.AdamW(params, lr=lr)
         return opt
-    
-    # def on_train_batch_end(self, outputs, batch, batch_idx, unused=0):
-    #     # model ema update
-    #     self.ema.copy2current(self.unet)
+    """    
+    def on_train_epoch_end(self):
+        self.trainer.test(datamodule=self.trainer.datamodule, ckpt_path=None)
+
+    def on_train_batch_end(self,outputs, batch, batch_idx, unused=0):
+        # model ema update
+        self.ema.copy2current(self.unet)
+    """
+    def on_train_epoch_end(self, *args, **kwargs):
+        ckpt_path="/data/smddls77/StableDiffusion/generation_samples/latest_model.ckpt"
+        self.trainer.save_checkpoint(ckpt_path)
+        

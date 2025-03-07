@@ -74,9 +74,9 @@ class EMAModel(nn.Module):
     @torch.no_grad()
     def forward(self, model):
         # update ema model
-
-        decay = min(self.base_decay, (1 + self.global_iter) / (10 + self.global_iter))
         
+        decay = min(self.base_decay, (1 + self.global_iter) / (10 + self.global_iter))
+        print("Current Decay : ", decay)
         for name, p in model.named_parameters():
             if p.requires_grad:
                 ema_name = f"ema_{name}"
@@ -112,13 +112,19 @@ def min_max_normalize(tensor: torch.Tensor, eps: float = 1e-7):
 
     return normalized
 
+def denorm(x):
+    return torch.clamp((x + 1.0) / 2.0, 0.0, 1.0)
+    
 def tensor2images(tensor_images: torch.FloatTensor) -> List[Image.Image]:
     # tensor_images shape : (b, c, h, w)
-    normalized_tensors = min_max_normalize(tensor_images)
+    normalized_tensors = denorm(tensor_images)
     scaled_tensors = normalized_tensors * 255
     return scaled_tensors
 
-def save_grid(tensor_images: torch.Tensor, save_path, nrow=4) -> None:
-    grid_image = make_grid(tensor_images, nrow=nrow)
-    grid_image = Image.fromarray(grid_image.cpu().detach().numpy().astype(np.uint8))
-    grid_image.save(save_path)
+def save_grid(tensor_images: torch.Tensor, save_dir, nrow=4) -> None:
+    import os
+    tensor_images = tensor_images.permute(0, 2, 3, 1)
+    
+    for i, tensor_image in enumerate(tensor_images):
+        grid_image = Image.fromarray(tensor_image.cpu().detach().numpy().astype(np.uint8))
+        grid_image.save(os.path.join(save_dir, f"{i}_th_generation.png"))

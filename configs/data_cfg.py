@@ -2,9 +2,9 @@ from .dotdict import DotDict
 
 diffusion_data_config = DotDict({
     "train": {
-        "img_dir": "",
-        "sketch_dir": "",
-        "bsz": 8,
+        "img_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/train/img",
+        "sketch_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/train/cathode",
+        "bsz": 4,
         "transform": {"resize_height": 256,
                       "resize_width": 256,
                       "hflip": 0.5,
@@ -16,9 +16,9 @@ diffusion_data_config = DotDict({
 
     },
     "test": {
-        "img_dir": "",
-        "sketch_dir": "",
-        "bsz": 8,
+        "img_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/test/img",
+        "sketch_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/test/cathode",
+        "bsz": 4,
         "normalize_mean": [0.5, 0.5, 0.5],
         "normalize_std": [0.5, 0.5, 0.5],
         "transform": {"resize_height": 256,
@@ -29,7 +29,7 @@ diffusion_data_config = DotDict({
 
 autoencoder_data_config = DotDict({
     "train": {
-        "img_dir": "",
+        "img_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/train/img",
         "bsz": 8,
         "transform": {"resize_height": 256,
                       "resize_width": 256,
@@ -42,7 +42,7 @@ autoencoder_data_config = DotDict({
     },
 
     "test": {
-        "img_dir": "",
+        "img_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/test/img",
         "bsz": 8,
         "normalize_mean": [0.5, 0.5, 0.5],
         "normalize_std": [0.5, 0.5, 0.5],

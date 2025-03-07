@@ -1,9 +1,8 @@
 # Following configuration values are referenced from Stable Diffusion Repo
 from .dotdict import DotDict
-# use_scale_shift_norm: true
 
-unet_config = {"middle_channels":192,
-               "in_channels": 64,
+unet_config = {"middle_channels":64,
+               "in_channels": 64, # color
                "out_channels": 64,
                "ch_mult": (1, 2, 2, 4, 4, 4),
                "use_timestep": True,
@@ -14,12 +13,12 @@ unet_config = {"middle_channels":192,
                "attn_resolutions": [16, 8],
                "resamp_with_conv": True,
                "transformer_depth": 1,
-               "context_dim": 512,
+               "context_dim": 768,
                "use_spatial_transformer": True,
                "num_head_channels": 32,
-               "resblock_updown": True,
+               "resblock_updown": False,
                "lr":1e-4,
                "mode": "train",
-               "sample_save_dir": ""}
+               "sample_save_dir": "/data/smddls77/StableDiffusion/generation_samples"}
 
 unet_config = DotDict(unet_config)

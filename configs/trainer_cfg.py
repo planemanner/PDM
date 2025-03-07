@@ -11,7 +11,10 @@ trainer_diffusion_config = {"accelerator": "gpu", # cpu, gpu, tpu, auto
                 #   "strategy": "auto", # auto, "deepspeed_stage_1", "deepspeed_stage_2", "deepspeed_stage_2_offload", "deepspeed_stage_3", "fsdp"
                   "precision": "32", # int or str like this example.
                   "strategy": strategy,
-                  "max_epochs": 500
+                  "max_epochs": 500,
+                  
+                  "limit_val_batches":1
+                  
                   }
 
 trainer_autoencoder_config = {"accelerator": "gpu", # cpu, gpu, tpu, auto
@@ -19,11 +22,15 @@ trainer_autoencoder_config = {"accelerator": "gpu", # cpu, gpu, tpu, auto
                 #   "strategy": "auto", # auto, "deepspeed_stage_1", "deepspeed_stage_2", "deepspeed_stage_2_offload", "deepspeed_stage_3", "fsdp"
                   "precision": "32", # int or str like this example.
                   "strategy": strategy,
-                  "max_epochs": 500
+                  "max_epochs": 500,
+                  
+                  "limit_val_batches":1
+                  
                   }
 """
 Note followings
 1. When saving a model using DeepSpeed and Stage 3, model states and optimizer states will be saved in 
 separate sharded states (based on the world size). 
 2. FSDP trades off speed for memory efficient training due to communication overheads. 
+
 """

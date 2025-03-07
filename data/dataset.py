@@ -137,7 +137,14 @@ class Sketch2ImageDataModule(L.LightningDataModule):
                                                  normalize_mean=self.config.train.normalize_mean,
                                                  normalize_std=self.config.train.normalize_std
                                                  )
-
+                                                 
+            tf = get_tf_for_sketch(self.config.test, mode='test')
+            self.val_set = Sketch2ImageDataset(self.config.test.img_dir, 
+                                                self.config.test.sketch_dir,
+                                                transform=tf,
+                                                normalize_mean=self.config.test.normalize_mean,
+                                                normalize_std=self.config.test.normalize_std
+                                                )
         if stage == 'test':
             tf = get_tf_for_sketch(self.config.test, mode='test')
             self.test_set = Sketch2ImageDataset(self.config.test.img_dir, 
@@ -151,9 +158,9 @@ class Sketch2ImageDataModule(L.LightningDataModule):
         # num_workers, shuffle, and sampler are automatically set up by internal ways.
         return DataLoader(self.train_set, batch_size=self.config.train.bsz)
     
-    def test_dataloader(self):
+    def val_dataloader(self):
         # num_workers, shuffle, and sampler are automatically set up by internal ways.
-        return DataLoader(self.test_set, batch_size=self.config.test.bsz)
+        return DataLoader(self.val_set, batch_size=self.config.test.bsz)
     
 
 class VAEDataModule(L.LightningDataModule):

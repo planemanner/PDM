@@ -112,11 +112,13 @@ class CrossAttention(nn.Module):
     def forward(self, x: torch.Tensor, context=None):
         # context is the text  
         b, x_len, dim_q = x.shape
+        
         if context is not None:
-            if context.ndim == 2:
-                context = context[:, None, :]
-
-        if context is None:
+            if context.ndim == 4:
+                # Image Prompt
+                b, c, h, w = context.shape
+                context = context.view(b, c, h*w).transpose(1, 2)
+        else:
             context = x
         
         q = self.q_embed(x)

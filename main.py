@@ -2,6 +2,7 @@ import argparse
 import os
 from trainer import train_diffusion, train_autoencoder
 
+
 def main():
     parser = argparse.ArgumentParser(description="Training script for AutoEncoder and Diffusion models")
     parser.add_argument('--stage', type=str, required=True, choices=['autoencoder', 'diffusion'],

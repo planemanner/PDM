@@ -10,6 +10,11 @@
   - So, unlike original Stable Diffusion model, the autoencoder is trained without EMA update. 
   - The Wavelet layers will be applied soon.
 
+- Current version is very incomfortable to use most features.
+  - Most configuration files are integrated for convenience and reduction of confusion.
+  - Since this is the first project using pytorch lightning, many parts are not graceful.
+  - So, some migrations are needed
+
 # Requirements
 - Python version : > 3.9
 - PyTorch version 2.0 or later is required.

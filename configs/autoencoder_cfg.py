@@ -31,12 +31,12 @@ autoencoder_config = {"vae_type": "kl_vae",
                                   'attn_type': 'vanilla'},
 
                       "common": {"embed_dim": 64,
-                                 "ckpt_path": None,
-                                 "lr": 1e-3},
+                                 "ckpt_path": "/data/smddls77/StableDiffusion/epoch=499.ckpt",
+                                 "lr": 4.5e-6},
                                 
                       "loss_fn": {"disc_start": 50001,
                                   "kl_weight": 1e-6,
                                   "disc_weight": 0.5},
-                      }
+                              }
 
 autoencoder_config = DotDict(autoencoder_config)
