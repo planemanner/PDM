@@ -8,7 +8,7 @@ from typing import List
 import os
 
 class StableDiffusion(L.LightningModule):
-    def __init__(self, unet_cfg, vae_cfg, sampler_cfg, conditioner_cfg=None):
+    def __init__(self, unet_cfg, vae_cfg, sampler_cfg, conditioner_cfg, save_dir:str, save_period:int):
         super().__init__()
         
         self.unet = get_module(unet_cfg, 'unet')
@@ -28,9 +28,10 @@ class StableDiffusion(L.LightningModule):
         if unet_cfg.mode == 'train':
             self.ema = EMAModel(self.unet)
         """
-        
+        self.ckpt_save_dir = save_dir
         self.lr = unet_cfg.lr
         self.sample_save_dir = unet_cfg.sample_save_dir
+        self.save_period = save_period
 
     def training_step(self, batch, batch_idx):
         # images : List of float tensors
@@ -82,6 +83,7 @@ class StableDiffusion(L.LightningModule):
         self.ema.copy2current(self.unet)
     """
     def on_train_epoch_end(self, *args, **kwargs):
-        ckpt_path="/data/smddls77/StableDiffusion/generation_samples/latest_model.ckpt"
-        self.trainer.save_checkpoint(ckpt_path)
+        if (self.current_epoch + 1) % self.save_period == 0 or self.current_epoch == 0:
+            ckpt_path = f"{self.ckpt_save_dir}/diffusion_epoch_{(self.current_epoch+1):03d}.ckpt"
+            self.trainer.save_checkpoint(ckpt_path)
         

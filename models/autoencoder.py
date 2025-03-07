@@ -124,7 +124,7 @@ class LPIPSWithDiscriminator(nn.Module):
             return d_loss, log
         
 class AutoEncoder(L.LightningModule):
-    def __init__(self, cfg, colorize_nlabels=None, monitor=None, ignore_keys:List[str]=[]):
+    def __init__(self, cfg, save_dir:str, save_period:int, colorize_nlabels=None, monitor=None, ignore_keys:List[str]=[]):
         super().__init__()
         # DotDict form
         self.cfg = cfg
@@ -149,7 +149,9 @@ class AutoEncoder(L.LightningModule):
         self.loss = LPIPSWithDiscriminator(disc_start=cfg.loss_fn.disc_start, 
                                            kl_weight=cfg.loss_fn.kl_weight, 
                                            disc_weight=cfg.loss_fn.disc_weight)
-        
+        self.save_dir = save_dir
+        self.save_period = save_period
+
     def init_from_ckpt(self, path:str, ignore_keys:List[str]):
         sd = torch.load(path, map_location="cpu")["state_dict"]
         keys = list(sd.keys())
@@ -248,7 +250,11 @@ class AutoEncoder(L.LightningModule):
                                lr=lr, betas=(0.5, 0.9))
         return [opt1, opt2], []
     
-    
+    def on_train_epoch_end(self, *args, **kwargs):
+        if (self.current_epoch + 1) % self.save_period == 0 or self.current_epoch == 0:
+            ckpt_path = f"{self.ckpt_save_dir}/ae_epoch_{(self.current_epoch+1):03d}.ckpt"
+            self.trainer.save_checkpoint(ckpt_path)
+
 if __name__ == "__main__":
     # Following disc compresses an image into 1/64 image shape and get scores.
     pass
