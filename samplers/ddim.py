@@ -48,7 +48,7 @@ class DDIMSampler(DDPMSampler):
         
         for i, step_t in enumerate(tqdm(timesteps, desc='DDIM Sampling...')):
             step_t = torch.full((bsz, ), step_t, device=cond.device, dtype=torch.long)
-            t_prev = timesteps[i+1] if i < len(timesteps)-1 else -1
+            t_prev = timesteps[i+1] if i < len(timesteps)-1 else 0
             t_prev_tensor = torch.full((bsz,), t_prev, device=cond.device, dtype=torch.long)
             xt = self.p_sample(model, xt, step_t, t_prev_tensor, cond)
             
