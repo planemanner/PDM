@@ -8,7 +8,6 @@ from diffusion import StableDiffusion
 from configs import data_cfg, diffusion_cfg
 from data.dataset import Sketch2ImageDataModule, VAEDataModule
 from models.autoencoder import AutoEncoder
-from lightning.pytorch.callbacks import ModelCheckpoint
 
 def train_diffusion(save_dir, seed: int=42, save_period: int=50):
     L.seed_everything(seed)

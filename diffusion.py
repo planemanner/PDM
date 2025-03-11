@@ -74,14 +74,11 @@ class StableDiffusion(L.LightningModule):
         params = self.unet.parameters()
         opt = torch.optim.AdamW(params, lr=lr)
         return opt
-    """    
-    def on_train_epoch_end(self):
-        self.trainer.test(datamodule=self.trainer.datamodule, ckpt_path=None)
+    
+    def ema_update(self):
+        # This is required to enhance sampling quality. 
+        pass
 
-    def on_train_batch_end(self,outputs, batch, batch_idx, unused=0):
-        # model ema update
-        self.ema.copy2current(self.unet)
-    """
     def on_train_epoch_end(self, *args, **kwargs):
         if (self.current_epoch + 1) % self.save_period == 0 or self.current_epoch == 0:
             ckpt_path = f"{self.ckpt_save_dir}/diffusion_epoch_{(self.current_epoch+1):03d}.ckpt"

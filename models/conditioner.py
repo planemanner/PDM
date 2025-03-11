@@ -1,7 +1,7 @@
 from torch import nn
 import torch
 from abc import ABC, abstractmethod
-from transformers import CLIPProcessor, CLIPModel, CLIPImageProcessor
+from transformers import CLIPModel, CLIPImageProcessor
 from PIL import Image
 from typing import List, Tuple
 import requests
@@ -19,7 +19,6 @@ class Conditioner(nn.Module, ABC):
 class ImagePrompter(nn.Module):
     def __init__(self, cfg):
         super().__init__()
-        
         # self.processor = CLIPProcessor.from_pretrained(cfg.model_name)
         self.processor = CLIPImageProcessor.from_pretrained(cfg.model_name)
         self.model = CLIPModel.from_pretrained(cfg.model_name)

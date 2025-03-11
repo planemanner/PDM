@@ -8,7 +8,7 @@ import os
 import argparse
 from configs.dotdict import DotDict
 from torchvision import transforms
-from configs.autoencoder_cfg import autoencoder_config
+from configs.diffusion_cfg import ae_config
 
 def load_model(config, checkpoint_path, device):
     """Load a trained AutoEncoder model"""
@@ -98,7 +98,7 @@ def main():
     print(f"Using device: {device}")
     
     # Load model
-    model = load_model(autoencoder_config, args.checkpoint, device)
+    model = load_model(ae_config, args.checkpoint, device)
     
     # Load images
     images = load_images(args.image_dir, args.image_size, n_images=args.n_images)

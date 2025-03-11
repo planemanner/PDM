@@ -4,7 +4,6 @@ from scipy.linalg import sqrtm
 from torch.utils.data import DataLoader
 from torchvision.models import inception_v3
 from torchvision.transforms import functional as F
-from typing import Tuple
 from torchvision import transforms
 from tqdm import tqdm
 from torchmetrics.image.fid import FrechetInceptionDistance as FID
