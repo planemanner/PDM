@@ -52,17 +52,19 @@ unet_config = DotDict({"middle_channels":192,
                "sample_save_dir": "/data/smddls77/StableDiffusion/generation_samples"})
 
 sampler_config = DotDict({"sampler_type": "ddim",
-                  "clip_denoised": True,
-                  "log_every_t": 0, 
-                  "image_size": image_size,
-                  "in_channels": image_channels,
-                  "use_ema": True,
-                  "v_posterior": 0.0,
-                  "original_elbo_weight": 0.0,
-                  "l_simple_weight": 1.0,
-                  "n_steps": 1000,
-                  "linear_start": 1e-4,
-                  "linear_end": 2e-2})
+                          "clip_denoised": True,
+                          "log_every_t": 0, 
+                          "image_size": image_size,
+                          "in_channels": image_channels,
+                          "use_ema": True,
+                          "v_posterior": 0.0,
+                          "original_elbo_weight": 0.0,
+                          "l_simple_weight": 1.0,
+                          "n_steps": 1000,
+                          "linear_start": 1e-4,
+                          "linear_end": 2e-2})
+
+flow_sampler_config = DotDict({"shortcut_length": 7})
 
 ae_config = DotDict({"vae_type": "kl_vae",
              "encoder": {'in_channels': image_channels,

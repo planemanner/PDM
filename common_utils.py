@@ -2,6 +2,7 @@ from torch import nn
 from typing import Optional
 from samplers.ddim import DDIMSampler
 from samplers.ddpm import DDPMSampler
+from samplers.shortcut import ShortcutFlowSampler
 from models.unet import UNetModel
 from models.autoencoder import AutoEncoder
 from models.conditioner import ImagePrompter
@@ -16,6 +17,8 @@ def get_sampler(cfg):
         return DDIMSampler(cfg)
     elif cfg.sampler_type == 'ddpm':
         return DDPMSampler(cfg)
+    elif cfg.sampler_type == 'shortcut':
+        return ShortcutFlowSampler(cfg)
     else:
         raise NotImplementedError('You must check the sampler name in architecture configuration file')
 

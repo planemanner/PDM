@@ -1,11 +1,12 @@
 from typing import Optional, Union
 import lightning as L
 from PIL import Image
-from common_utils import get_module, disable_model_training, EMAModel, tensor2images, save_grid
+from common_utils import get_module, disable_model_training, tensor2images, save_grid
 import torch
 from torch.nn import functional as F
 from typing import List
 import os
+from samplers.shortcut import ShortcutFlowSampler
 
 class StableDiffusion(L.LightningModule):
     def __init__(self, unet_cfg, vae_cfg, sampler_cfg, conditioner_cfg, save_dir:str, save_period:int):
@@ -32,23 +33,42 @@ class StableDiffusion(L.LightningModule):
         self.lr = unet_cfg.lr
         self.sample_save_dir = unet_cfg.sample_save_dir
         self.save_period = save_period
+        self.isflowmodel = True if isinstance(self.sampler, ShortcutFlowSampler) else False 
 
     def training_step(self, batch, batch_idx):
         # images : List of float tensors
         # sketches : List of PIL images.
-        
         images, sketches = batch      
         conds = self.conditioner(sketches)
         z = self.vae_model.encode(images).sample()
-        
-        t = torch.randint(0, self.n_timesteps, (len(images), ), device=self.device).long()
-        noisy_inputs, labels = self.sampler.q_sample(z, t)
-        
-        pred_noises = self.unet(noisy_inputs, t, conds)
-        loss = F.mse_loss(pred_noises, labels)
-        self.log('TRAIN_LOSS', loss.item(), prog_bar=True, on_step=True, on_epoch=True)
-        
-        return loss
+
+        if not self.isflowmodel:    
+            t = torch.randint(0, self.n_timesteps, (len(images), ), device=self.device).long()
+            noisy_inputs, labels = self.sampler.q_sample(z, t)
+            
+            pred_noises = self.unet(noisy_inputs, t, conds)
+            loss = F.mse_loss(pred_noises, labels)
+            self.log('TRAIN_LOSS', loss.item(), prog_bar=True, on_step=True, on_epoch=True)
+            
+            return loss
+        else:
+            t = self.sampler.sample_t(len(images), self.device)
+            d = self.sampler.sample_d(len(images), self.device)
+            d0 = torch.zeros_like(d, device=self.device)
+            x0 = torch.randn_like(z).to(self.device)
+            x_t = (1-t) * x0 + t * z
+            flow_labels = z - x0
+
+            with torch.no_grad():
+                x_t_plus_d, _, s_first = self.sampler.shortcut_step(self.unet, x_t, t, d, conds)
+                _, _, s_second = self.sampler.shortcut_step(self.unet, x_t_plus_d, t, d, conds)
+                s_target = 0.5 * (s_first + s_second)
+            
+            x_t_plus_d0, _, s_0 = self.sampler.shortcut_step(self.unet, x_t, t, d0, conds)
+            _, _, self_consistency = self.sampler.shortcut_step(self.unet, x_t_plus_d0, t, 2 * d, conds)
+            loss = F.mse_loss(s_0, flow_labels) + F.mse_loss(self_consistency, s_target)
+            self.log('TRAIN_LOSS', loss.item(), prog_bar=True, on_step=True, on_epoch=True)
+            return loss
 
     def validation_step(self, batch, batch_idx):
         images, sketches = batch
@@ -61,6 +81,7 @@ class StableDiffusion(L.LightningModule):
 
     @torch.no_grad()
     def generate_sketch2image(self, prompts: List[Image.Image], latent_shape: List[int]=[64, 32, 32]) -> torch.IntTensor:
+        
         conds = self.conditioner(prompts)
         latent_shape = [len(conds)] + latent_shape 
         denoised_z = self.sampler.sampling(self.unet, latent_shape, conds, n_steps=200)

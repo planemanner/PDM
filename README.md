@@ -1,6 +1,6 @@
-# Implementation of Diffusion Probabilistic Model Made Slim, CVPR 2023
-- This is unofficial implementation repository.
-  - [Paper Link](https://openaccess.thecvf.com/content/CVPR2023/papers/Yang_Diffusion_Probabilistic_Model_Made_Slim_CVPR_2023_paper.pdf) and [Stable Diffusion](https://github.com/CompVis/stable-diffusion)
+# Implementation of Stable Diffusion and One Step Diffusion Model
+- This is unofficial implementation repository for Stable Diffusion (2021) and One Step Diffusion (ICLR 2025).
+  - [One Step Diffusion](https://arxiv.org/pdf/2410.12557)
 - This paper adds and modifies wavelet layer and the number of channels for each layer so that some code of this repository is similar to [Stable Diffusion](https://github.com/CompVis/stable-diffusion).  
 - For clarity and better readibility, I modified variable names and integrated modules.
 - Since num_timesteps_cond is always set to '1', all related legacy code blocks are removed.
@@ -14,22 +14,13 @@
   - Most configuration files are integrated for convenience and reduction of confusion.
   - Since this is the first project using pytorch lightning, many parts are not graceful.
   - So, some migrations are needed
-# To do
-- Replace the UNet's Down & Up sample blocks with WaveletLayers.
-- Add distillation parts for Diffusion Model
-- Check the configuration combinations
-- Check whether this code base is actually working or not.
-  - Loading models and pipelines on GPUs
-  - Sampling
-  - Multi-GPUs & Multi-Node
-- Update quantitative metrics for validation. (e.g., FID)
-- Add additional analysis tools with callback function (e.g., MLFlow)
-- ICLR 2025 Paper 내용을 고려하여 UNet 구조를 약간 변경 및 Sampler 구현
+
 # Requirements
 - Python version : > 3.9
 - PyTorch version 2.0 or later is required.
 - The whole traininng pipeline is written under Pytorch Lightning 2.5.0
 # Usage
+- ...
 ## Training
 ### Stage 1 : Train AutoEncoder
 ```sh
@@ -102,61 +93,8 @@ cd lightning_logs/version_0/checkpoints
 python -m lightning.pytorch.utilities.consolidate_checkpoint epoch=0-step=3.ckpt
 ```
 
-### 출력 결과
-
-추론 과정은 각 입력 스케치에 대해 다음과 같은 결과를 생성합니다:
-
-1. 입력 스케치 이미지
-2. 모델이 생성한 이미지
-3. 원본 참조 이미지 (있는 경우)
-
-이 세 이미지는 하나의 파일로 병합되어 `--save_dir` 경로에 저장됩니다. 각 결과 이미지에는 'PROMPT', 'GENERATED', 'ORIGINAL'이라는 제목이 표시됩니다.
-
-### 디렉토리 구조
-
-테스트 디렉토리는 다음과 같은 구조를 가져야 합니다:
-
-```
-test_dir/
-  ├── MASK_HINT/  # 입력 스케치 이미지
-  │    ├── image1.png
-  │    ├── image2.png
-  │    └── ...
-  └── img/        # 원본 참조 이미지 (선택 사항)
-       ├── image1.png
-       ├── image2.png
-       └── ...
-```
-
-### 코드 예시
-
-모델을 프로그래밍 방식으로 사용하려면 다음 코드를 참조하세요:
-
-```python
-from diffusion import StableDiffusion
-import torch
-from PIL import Image
-
-# 모델 로드
-diffuser = StableDiffusion(unet_cfg=unet_config, 
-                          vae_cfg=ae_config, 
-                          sampler_cfg=sampler_config,
-                          conditioner_cfg=conditioner_config)
-
-# 체크포인트 로드
-ckpt = torch.load("path/to/checkpoint.ckpt")
-diffuser.load_state_dict(ckpt['state_dict'])
-diffuser.eval()
-diffuser.to("cuda")
-
-# 이미지 생성
-sketch_image = Image.open("path/to/sketch.png").convert('RGB')
-with torch.no_grad():
-    generated_image = diffuser.generate_sketch2image([sketch_image])
-```
-
-### 주의사항
-
-- 입력 스케치 이미지는 RGB 형식이어야 합니다.
-- 최상의 결과를 위해 학습 데이터와 유사한 스타일의 스케치를 사용하세요.
-- 대용량 이미지를 처리할 때는 배치 크기(`--bsz`)를 조정하여 메모리 사용량을 관리하세요.
+## To do
+- Update quantitative metrics for validation. (e.g., FID)
+- Add additional analysis tools with callback function (e.g., MLFlow)
+- ICLR 2025 적용을 위해 남은 Tasks
+  - UNet 이 step size d 를 encoding 할 수 있도록 block 들을 변경하고 입력단 수정하기
