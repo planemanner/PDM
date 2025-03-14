@@ -57,16 +57,17 @@ class StableDiffusion(L.LightningModule):
             
             return loss
         else:
-            t = self.sampler.sample_t(len(images), self.device)
             d, d_idx = self.sampler.sample_d(len(images), self.device)
+            t = self.sampler.sample_t(len(images), d_idx, self.device)
+            
             d0 = torch.zeros_like(d, device=self.device)
             x0 = torch.randn_like(z).to(self.device)
             x_t = (1-t)[:, None, None, None] * x0 + t[:, None, None, None] * z
             flow_labels = z - x0
 
             with torch.no_grad():
-                x_t_plus_d, _, s_first = self.sampler.shortcut_step(self.unet, x_t, t, d, conds)
-                _, _, s_second = self.sampler.shortcut_step(self.unet, x_t_plus_d, t, d, conds)
+                x_t_plus_d, t_plus_d, s_first = self.sampler.shortcut_step(self.unet, x_t, t, d, conds)
+                _, _, s_second = self.sampler.shortcut_step(self.unet, x_t_plus_d, t_plus_d, d, conds)
                 s_target = 0.5 * (s_first + s_second)
             
             x_t_plus_d0, _, s_0 = self.sampler.shortcut_step(self.unet, x_t, t, d0, conds)

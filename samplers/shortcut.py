@@ -30,14 +30,19 @@ class ShortcutFlowSampler(nn.Module):
         self.min_shortcut_length = self.shortcut_lengths[0]  # 1/128
         self.max_steps = int(1 / self.shortcut_lengths[0])
 
-    def sample_t(self, batch_size: int, device: torch.device) -> torch.Tensor:
-        """Uniform distribution에서 t 샘플링"""
-        return torch.rand(batch_size, device=device)
+    def sample_t(self, batch_size: int, d_idx, device: torch.device) -> torch.Tensor:
+        d_section = torch.pow(2, d_idx)
+        t = torch.zeros(batch_size, device=device)
+        for i in range(batch_size):
+            t[i] = torch.randint(low=0, high=d_section.item(), size=(1,), device=device).item()
+        t = t / d_section
+        return t
     
     def sample_d(self, batch_size: int, device: torch.device) -> Tuple[torch.Tensor, int]:
-        """Shortcut 길이 d 샘플링"""
+        # You must sample d before sampling t
         d_idx = torch.randint(0, len(self.shortcut_lengths), (batch_size,), device=device)
         d = torch.tensor([self.shortcut_lengths[idx.item()] for idx in d_idx], device=device)
+        
         return d, d_idx
     
     def shortcut_step(self, model: nn.Module, 
@@ -46,7 +51,10 @@ class ShortcutFlowSampler(nn.Module):
                       d: torch.FloatTensor,
                       prompts: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.IntTensor]:
         model_output = model(x_t, t, d, prompts) # s_{\theta}(x_{t}, t, d)
-        x_t_plus_d = x_t + d[:, None, None, None] * model_output
+        """
+        Refer to Heun Method.
+        """
+        x_t_plus_d = x_t + 0.5 * d[:, None, None, None] * model_output
         return x_t_plus_d, t+d, model_output
     
     @torch.no_grad()
@@ -55,15 +63,7 @@ class ShortcutFlowSampler(nn.Module):
                  latent_shape: Tuple[int, int, int, int],
                  prompts: torch.FloatTensor, 
                  n_steps: int = 64) -> torch.Tensor:
-        """
-        Shortcut Flow를 사용한 샘플링
-        Args:
-            model: Flow 모델
-            x_init: 초기 입력
-            steps: 샘플링 스텝 수
-        Returns:
-            생성된 샘플
-        """
+
         assert n_steps <= self.max_steps
         bsz = latent_shape[0]
         device = prompts.device
