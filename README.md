@@ -96,5 +96,4 @@ python -m lightning.pytorch.utilities.consolidate_checkpoint epoch=0-step=3.ckpt
 ## To do
 - Update quantitative metrics for validation. (e.g., FID)
 - Add additional analysis tools with callback function (e.g., MLFlow)
-- ICLR 2025 적용을 위해 남은 Tasks
-  - UNet 이 step size d 를 encoding 할 수 있도록 block 들을 변경하고 입력단 수정하기
+- Code base looks spagetti. So, I'll refactor configuration and related part for convenience in terms of usage and maintenance.
