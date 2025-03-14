@@ -31,12 +31,13 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     """
     A sequential module that passes timestep embeddings to the children that
     support it as an extra input.
+    Wrapping Class 임.
     """
 
-    def forward(self, x, emb, context=None):
+    def forward(self, x, t_emb, d_emb=None, context=None):
         for layer in self:
             if isinstance(layer, TimeStepResBlock):
-                x = layer(x, emb)
+                x = layer(x, t_emb, d_emb)
             elif isinstance(layer, SpatialTransformer):
                 x = layer(x, context)
             else:
@@ -386,7 +387,7 @@ class SpatialTransformer(nn.Module):
         return x + residue
 
 class TimeStepResBlock(TimestepBlock):
-    def __init__(self, in_channels, out_channels, emb_channels, dropout:float=0.0, 
+    def __init__(self, in_channels, out_channels, t_emb_channels, d_emb_channels:int=0, dropout:float=0.0, 
                  up: bool=False, down: bool=False, use_conv:bool=False, eps=1e-6):
         super().__init__()
 
@@ -405,8 +406,11 @@ class TimeStepResBlock(TimestepBlock):
         else:
             self.h_upd = self.x_upd = nn.Identity()
         
-        self.emb_layers = nn.Sequential(nn.SiLU(),
-                                        nn.Linear(emb_channels, out_channels))
+        self.t_emb_layers = nn.Sequential(nn.SiLU(),
+                                        nn.Linear(t_emb_channels, out_channels))
+        
+        self.d_emb_layers = nn.Sequential(nn.SiLU(),
+                                          nn.Linear(d_emb_channels, out_channels)) if d_emb_channels > 0 else None
         
         self.out_layers = nn.Sequential(
             nn.GroupNorm(32, out_channels, eps=eps),
@@ -422,7 +426,7 @@ class TimeStepResBlock(TimestepBlock):
         else:        
             self.skip_connection = nn.Conv2d(in_channels, out_channels, kernel_size=1)
 
-    def forward(self, x, emb):
+    def forward(self, x, t_emb, d_emb=None):
 
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
@@ -433,12 +437,19 @@ class TimeStepResBlock(TimestepBlock):
         else:
             h = self.in_layers(x)
 
-        emb_out = self.emb_layers(emb).type(h.dtype)
+        t_emb_out = self.t_emb_layers(t_emb).type(h.dtype)
 
-        while emb_out.ndim < h.ndim:
-            emb_out = emb_out[..., None]
+        while t_emb_out.ndim < h.ndim:
+            t_emb_out = t_emb_out[..., None]
+        
+        if self.d_emb_layers is not None or d_emb is not None:
+            d_emb_out = self.d_emb_layers(d_emb).type(h.dtype)
+            while d_emb_out.ndim < h.ndim:
+                d_emb_out = d_emb_out[..., None]
+            h = h + t_emb_out + d_emb_out
+        else:
+            h = h + t_emb_out
 
-        h = h + emb_out
         h = self.out_layers(h)
 
         return self.skip_connection(x) + h

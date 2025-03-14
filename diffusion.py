@@ -7,6 +7,7 @@ from torch.nn import functional as F
 from typing import List
 import os
 from samplers.shortcut import ShortcutFlowSampler
+from configs.diffusion_cfg import flow_sampler_config
 
 class StableDiffusion(L.LightningModule):
     def __init__(self, unet_cfg, vae_cfg, sampler_cfg, conditioner_cfg, save_dir:str, save_period:int):
@@ -19,7 +20,11 @@ class StableDiffusion(L.LightningModule):
             vae_state_dict = vae_state_dict["state_dict"]        
         self.vae_model.load_state_dict(vae_state_dict)
         self.conditioner = get_module(conditioner_cfg, 'conditioner') # If it is None, this Diffusion model is to be trained without any condition
-        self.sampler = get_module(sampler_cfg, 'sampler')
+
+        if unet_cfg.use_step_embed:
+            self.sampler = ShortcutFlowSampler(flow_sampler_config)
+        else:
+            self.sampler = get_module(sampler_cfg, 'sampler')
 
         disable_model_training(self.conditioner)
         disable_model_training(self.vae_model)
@@ -53,10 +58,10 @@ class StableDiffusion(L.LightningModule):
             return loss
         else:
             t = self.sampler.sample_t(len(images), self.device)
-            d = self.sampler.sample_d(len(images), self.device)
+            d, d_idx = self.sampler.sample_d(len(images), self.device)
             d0 = torch.zeros_like(d, device=self.device)
             x0 = torch.randn_like(z).to(self.device)
-            x_t = (1-t) * x0 + t * z
+            x_t = (1-t)[:, None, None, None] * x0 + t[:, None, None, None] * z
             flow_labels = z - x0
 
             with torch.no_grad():
@@ -80,11 +85,11 @@ class StableDiffusion(L.LightningModule):
             save_grid(decoded, save_dir)
 
     @torch.no_grad()
-    def generate_sketch2image(self, prompts: List[Image.Image], latent_shape: List[int]=[64, 32, 32]) -> torch.IntTensor:
+    def generate_sketch2image(self, prompts: List[Image.Image], latent_shape: List[int]=[4, 32, 32]) -> torch.IntTensor:
         
         conds = self.conditioner(prompts)
         latent_shape = [len(conds)] + latent_shape 
-        denoised_z = self.sampler.sampling(self.unet, latent_shape, conds, n_steps=200)
+        denoised_z = self.sampler.sampling(self.unet, latent_shape, conds, n_steps=64)
         decoded = self.vae_model.decode(denoised_z) # Tensor Images
         decoded = tensor2images(decoded) # 8-bit tensors
         

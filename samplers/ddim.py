@@ -8,9 +8,9 @@ class DDIMSampler(DDPMSampler):
         super().__init__(cfg)
         self.eta = 0.0
 
-    def p_sample(self, model, xt, t, t_prev,cond=None) -> torch.FloatTensor:
+    def p_sample(self, model, xt, t, t_prev, cond=None) -> torch.FloatTensor:
         # Deterministic Sampling Only.
-        pred_eps = model(xt, t, cond)
+        pred_eps = model(xt, t, context=cond)
         pred_x0  = (xt - self.sqrt_one_minus_alphas_cumprod[t][:, None, None, None] * pred_eps) / self.sqrt_alphas_cumprod[t][:, None, None, None]
 
         alpha_cumprod_t = self.alphas_cumprod[t][:, None, None, None]

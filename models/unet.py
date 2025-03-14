@@ -15,6 +15,18 @@ class UNetModel(nn.Module):
             nn.SiLU(),
             nn.Linear(time_embed_dim, time_embed_dim),
         )
+        """
+        step_embed 는 time_embed_dim 과 같은 크기의 tensor 를 받도록 구성
+        출력도 마찬가지.
+        """
+        self.use_step_embed = cfg.use_step_embed
+        if self.use_step_embed:
+            self.step_embed = nn.Sequential(
+                nn.Linear(time_embed_dim, time_embed_dim),
+                nn.SiLU(),
+                nn.Linear(time_embed_dim, time_embed_dim),
+            )
+
         self.get_sinusoid_time = TimeStep2Sinusoid(time_embed_dim)
 
         self.input_blocks = nn.ModuleList(
@@ -36,8 +48,9 @@ class UNetModel(nn.Module):
                 layers = [
                     TimeStepResBlock(ch, 
                                      mult * cfg.middle_channels, 
-                                     time_embed_dim, 
-                                     cfg.dropout)
+                                     t_emb_channels=time_embed_dim, 
+                                     d_emb_channels=time_embed_dim,
+                                     dropout=cfg.dropout)
                 ]
                 ch = mult * cfg.middle_channels
                 if ds in cfg.attn_resolutions:
@@ -69,7 +82,8 @@ class UNetModel(nn.Module):
 
                         TimeStepResBlock(in_channels=ch, 
                                          out_channels=out_ch, 
-                                         emb_channels=time_embed_dim,
+                                         t_emb_channels=time_embed_dim,
+                                         d_emb_channels=time_embed_dim,
                                          down=True) if cfg.resblock_updown else Downsample(ch)
                     )
                 )
@@ -89,7 +103,8 @@ class UNetModel(nn.Module):
         self.middle_block = TimestepEmbedSequential(
             TimeStepResBlock(ch, 
                              ch, 
-                             time_embed_dim, 
+                             t_emb_channels=time_embed_dim,
+                             d_emb_channels=time_embed_dim,
                              dropout=cfg.dropout),
 
             MultiHeadSelfAttention(ch,
@@ -100,7 +115,8 @@ class UNetModel(nn.Module):
                         ),
             TimeStepResBlock(ch, 
                              ch, 
-                             time_embed_dim, 
+                             t_emb_channels=time_embed_dim,
+                             d_emb_channels=time_embed_dim,
                              dropout=cfg.dropout),
         )
 
@@ -115,7 +131,8 @@ class UNetModel(nn.Module):
                     TimeStepResBlock(
                         ch + ich,
                         cfg.middle_channels * mult,
-                        time_embed_dim,
+                        t_emb_channels=time_embed_dim,
+                        d_emb_channels=time_embed_dim,
                         dropout=cfg.dropout)                    
                 ]
                 ch = cfg.middle_channels * mult
@@ -144,7 +161,8 @@ class UNetModel(nn.Module):
                         TimeStepResBlock(
                             ch,
                             out_ch,
-                            time_embed_dim,
+                            t_emb_channels=time_embed_dim,
+                            d_emb_channels=time_embed_dim,
                             dropout=cfg.dropout,
                             up=True
                         )                        
@@ -160,7 +178,7 @@ class UNetModel(nn.Module):
             zero_module(nn.Conv2d(cfg.middle_channels, cfg.out_channels, 3, padding=1))
         )
 
-    def forward(self, x: torch.FloatTensor, timesteps: torch.IntTensor, context: torch.FloatTensor):
+    def forward(self, x: torch.FloatTensor, timesteps: torch.IntTensor, step_sizes: torch.IntTensor=None, context: torch.FloatTensor=None):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -172,20 +190,28 @@ class UNetModel(nn.Module):
         """
         hs = []
         t_emb = self.get_sinusoid_time(timesteps)
-        
-        emb = self.time_embed(t_emb)
+        # sinusoidal embedding 이 적절한지 여부에 대해 고민해볼 필요 있음.
+        t_emb = self.time_embed(t_emb)
+
+        if step_sizes is not None and self.use_step_embed:
+            d_emb = self.get_sinusoid_time(step_sizes)
+            d_emb = self.step_embed(d_emb)
+        else:
+            # Flow Matching 안 쓸 때 분기 처리
+            d_emb = None
+
         h = x
 
         for i, module in enumerate(self.input_blocks):
             
-            h = module(h, emb, context)
+            h = module(h, t_emb, d_emb, context)
             hs.append(h)
 
-        h = self.middle_block(h, emb, context)
+        h = self.middle_block(h, t_emb, d_emb, context)
 
         for module in self.output_blocks:
             h = torch.cat([h, hs.pop()], dim=1)
-            h = module(h, emb, context)
+            h = module(h, t_emb, d_emb, context)
             
         return self.out(h)
 
