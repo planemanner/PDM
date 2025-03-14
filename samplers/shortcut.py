@@ -54,7 +54,7 @@ class ShortcutFlowSampler(nn.Module):
         """
         Refer to Heun Method.
         """
-        x_t_plus_d = x_t + 0.5 * d[:, None, None, None] * model_output
+        x_t_plus_d = x_t + d[:, None, None, None] * model_output
         return x_t_plus_d, t+d, model_output
     
     @torch.no_grad()

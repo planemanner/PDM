@@ -66,8 +66,8 @@ class StableDiffusion(L.LightningModule):
             flow_labels = z - x0
 
             with torch.no_grad():
-                x_t_plus_d, t_plus_d, s_first = self.sampler.shortcut_step(self.unet, x_t, t, d, conds)
-                _, _, s_second = self.sampler.shortcut_step(self.unet, x_t_plus_d, t_plus_d, d, conds)
+                x_t_plus_d, _, s_first = self.sampler.shortcut_step(self.unet, x_t, t, d, conds)
+                _, _, s_second = self.sampler.shortcut_step(self.unet, x_t_plus_d, t, d, conds)
                 s_target = 0.5 * (s_first + s_second)
             
             x_t_plus_d0, _, s_0 = self.sampler.shortcut_step(self.unet, x_t, t, d0, conds)
