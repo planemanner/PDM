@@ -15,85 +15,25 @@
   - Since this is the first project using pytorch lightning, many parts are not graceful.
   - So, some migrations are needed
 
+- Current version's prompt for generation is "Binary Mask".
+# Update
+- Configuration 정리
+  - Dataclass 활용해서 정리함 
+  - 실험 관리를 용이하게 하기 위함.
+- CLI 를 기반으로 실험을 편하게 할 수 있도록 Interface 개선
+
 # Requirements
 - Python version : > 3.9
 - PyTorch version 2.0 or later is required.
 - The whole traininng pipeline is written under Pytorch Lightning 2.5.0
 # Usage
-- ...
 ## Training
-### Stage 1 : Train AutoEncoder
-```sh
-python main.py --stage autoencoder
-```
-### Stage 2 : Train Diffusion Model
-```sh
-python main.py --stage diffusion --autoencoder_ckpt [AUTOENCODER PATH]
-```
+- First, train auto-encoder
+- Second, train unet with flow-matching method or ddpm(ddim)
 
-## Inference
-- Inference 코드를 작성하여 모델을 사용하여 이미지를 생성합니다.
-- 예시:
-```python
-from models.autoencoder import AutoEncoder
-from models.unet import UNetModel
-from samplers.ddpm import DDPMSampler
-from configs import autoencoder_cfg, unet_cfg, sampler_cfg
-from common_utils import DotDict
-
-# Load models
-autoencoder = AutoEncoder(DotDict(autoencoder_cfg.autoencoder_config))
-unet = UNetModel(DotDict(unet_cfg.unet_config))
-sampler = DDPMSampler(DotDict(sampler_cfg.sampler_config))
-
-# Load checkpoints
-autoencoder.load_state_dict(torch.load('path/to/autoencoder/checkpoint.ckpt'))
-unet.load_state_dict(torch.load('path/to/unet/checkpoint.ckpt'))
-
-# Generate images
-generated_images = sampler.sampling(unet, image_shape=(batch_size, 3, 256, 256))
-```
-
-## Serving
-- Serving 코드를 작성하여 모델을 배포합니다.
-- 예시:
-```python
-from flask import Flask, request, jsonify
-from models.autoencoder import AutoEncoder
-from models.unet import UNetModel
-from samplers.ddpm import DDPMSampler
-from configs import autoencoder_cfg, unet_cfg, sampler_cfg
-from common_utils import DotDict
-
-app = Flask(__name__)
-
-# Load models
-autoencoder = AutoEncoder(DotDict(autoencoder_cfg.autoencoder_config))
-unet = UNetModel(DotDict(unet_cfg.unet_config))
-sampler = DDPMSampler(DotDict(sampler_cfg.sampler_config))
-
-# Load checkpoints
-autoencoder.load_state_dict(torch.load('path/to/autoencoder/checkpoint.ckpt'))
-unet.load_state_dict(torch.load('path/to/unet/checkpoint.ckpt'))
-
-@app.route('/generate', methods=['POST'])
-def generate():
-    data = request.json
-    batch_size = data.get('batch_size', 1)
-    generated_images = sampler.sampling(unet, image_shape=(batch_size, 3, 256, 256))
-    return jsonify({'generated_images': generated_images.tolist()})
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
-```
-
-## Convert sharded checkpoint to consolidated checkpoint
-```bash
-cd lightning_logs/version_0/checkpoints
-python -m lightning.pytorch.utilities.consolidate_checkpoint epoch=0-step=3.ckpt
-```
 
 ## To do
 - Update quantitative metrics for validation. (e.g., FID)
 - Add additional analysis tools with callback function (e.g., MLFlow)
 - Code base looks spagetti. So, I'll refactor configuration and related part for convenience in terms of usage and maintenance.
+- Implement a method to empower condition in generation process.

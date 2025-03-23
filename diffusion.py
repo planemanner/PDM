@@ -1,43 +1,43 @@
-from typing import Optional, Union
 import lightning as L
 from PIL import Image
-from common_utils import get_module, disable_model_training, tensor2images, save_grid
+from common_utils import disable_model_training, tensor2images, save_grid, get_conditioner
 import torch
 from torch.nn import functional as F
 from typing import List
 import os
 from samplers.shortcut import ShortcutFlowSampler
-from configs.diffusion_cfg import flow_sampler_config
+from samplers.ddim import DDIMSampler
+from configs.diffusion_cfg import FlowConfig, DDConfig
+from models.unet import UNetModel
+from models.autoencoder import AutoEncoder
 
 class StableDiffusion(L.LightningModule):
-    def __init__(self, unet_cfg, vae_cfg, sampler_cfg, conditioner_cfg, save_dir:str, save_period:int):
+    def __init__(self, diff_cfg):
         super().__init__()
         
-        self.unet = get_module(unet_cfg, 'unet')
-        self.vae_model = get_module(vae_cfg, 'vae') # The vae model should be already trained on image data.
-        vae_state_dict = torch.load(vae_cfg.common.ckpt_path, map_location="cpu")
+        self.unet = UNetModel(diff_cfg.unet)
+        self.vae = AutoEncoder(diff_cfg.ae)
+
+        vae_state_dict = torch.load(diff_cfg.ae_ckpt_path, map_location="cpu")
         if "state_dict" in vae_state_dict:
             vae_state_dict = vae_state_dict["state_dict"]        
-        self.vae_model.load_state_dict(vae_state_dict)
-        self.conditioner = get_module(conditioner_cfg, 'conditioner') # If it is None, this Diffusion model is to be trained without any condition
+        self.vae.load_state_dict(vae_state_dict)
+        self.conditioner = get_conditioner(diff_cfg.context)
 
-        if unet_cfg.use_step_embed:
-            self.sampler = ShortcutFlowSampler(flow_sampler_config)
+        if diff_cfg.sampler_type == "flow-matching":
+            self.sampler = ShortcutFlowSampler(FlowConfig)
+            self.n_timesteps = FlowConfig.n_steps
         else:
-            self.sampler = get_module(sampler_cfg, 'sampler')
+            self.sampler = DDIMSampler(DDConfig)
+            self.n_timesteps = DDConfig.n_steps
 
         disable_model_training(self.conditioner)
-        disable_model_training(self.vae_model)
+        disable_model_training(self.vae)
 
-        self.n_timesteps = sampler_cfg.n_steps
-        """
-        if unet_cfg.mode == 'train':
-            self.ema = EMAModel(self.unet)
-        """
-        self.ckpt_save_dir = save_dir
-        self.lr = unet_cfg.lr
-        self.sample_save_dir = unet_cfg.sample_save_dir
-        self.save_period = save_period
+        self.ckpt_save_dir = diff_cfg.diffusion_ckpt_save_dir
+        self.lr = diff_cfg.lr
+        self.sample_save_dir = diff_cfg.sample_save_dir
+        self.save_period = diff_cfg.save_period
         self.isflowmodel = True if isinstance(self.sampler, ShortcutFlowSampler) else False 
 
     def training_step(self, batch, batch_idx):
@@ -45,9 +45,10 @@ class StableDiffusion(L.LightningModule):
         # sketches : List of PIL images.
         images, sketches = batch      
         conds = self.conditioner(sketches)
-        z = self.vae_model.encode(images).sample()
+        z = self.vae.encode(images).sample()
 
-        if not self.isflowmodel:    
+        if not self.isflowmodel:
+            # DDPM or DDIM    
             t = torch.randint(0, self.n_timesteps, (len(images), ), device=self.device).long()
             noisy_inputs, labels = self.sampler.q_sample(z, t)
             
@@ -66,8 +67,9 @@ class StableDiffusion(L.LightningModule):
             flow_labels = z - x0
 
             with torch.no_grad():
-                x_t_plus_d, _, s_first = self.sampler.shortcut_step(self.unet, x_t, t, d, conds)
-                _, _, s_second = self.sampler.shortcut_step(self.unet, x_t_plus_d, t, d, conds)
+                x_t_plus_d, t_plus_d, s_first = self.sampler.shortcut_step(self.unet, x_t, t, d, conds)
+                _, _, s_second = self.sampler.shortcut_step(self.unet, x_t_plus_d, t_plus_d, d, conds)
+                s_second = torch.clip(s_second, -4, 4)
                 s_target = 0.5 * (s_first + s_second)
             
             x_t_plus_d0, _, s_0 = self.sampler.shortcut_step(self.unet, x_t, t, d0, conds)
@@ -91,7 +93,7 @@ class StableDiffusion(L.LightningModule):
         conds = self.conditioner(prompts)
         latent_shape = [len(conds)] + latent_shape 
         denoised_z = self.sampler.sampling(self.unet, latent_shape, conds, n_steps=64)
-        decoded = self.vae_model.decode(denoised_z) # Tensor Images
+        decoded = self.vae.decode(denoised_z) # Tensor Images
         decoded = tensor2images(decoded) # 8-bit tensors
         
         return decoded

@@ -124,7 +124,7 @@ class LPIPSWithDiscriminator(nn.Module):
             return d_loss, log
         
 class AutoEncoder(L.LightningModule):
-    def __init__(self, cfg, save_dir:str, save_period:int, colorize_nlabels=None, monitor=None, ignore_keys:List[str]=[]):
+    def __init__(self, cfg, colorize_nlabels=None, monitor=None, ignore_keys:List[str]=[]):
         super().__init__()
         # DotDict form
         self.cfg = cfg
@@ -133,8 +133,8 @@ class AutoEncoder(L.LightningModule):
         self.encoder = Encoder(**cfg.encoder)
         self.decoder = Decoder(**cfg.decoder)
 
-        self.quant_conv = torch.nn.Conv2d(2*cfg.encoder.z_channels, 2 * cfg.common.embed_dim, 1)
-        self.post_quant_conv = torch.nn.Conv2d(cfg.common.embed_dim, cfg.decoder.z_channels, 1)
+        self.quant_conv = torch.nn.Conv2d(2*cfg.encoder.z_channels, 2 * cfg.embed_dim, 1)
+        self.post_quant_conv = torch.nn.Conv2d(cfg.embed_dim, cfg.decoder.z_channels, 1)
         
         if colorize_nlabels is not None:
             assert type(colorize_nlabels) == int
@@ -143,14 +143,14 @@ class AutoEncoder(L.LightningModule):
         if monitor is not None:
             self.monitor = monitor
 
-        if cfg.common.ckpt_path is not None:
-            self.init_from_ckpt(cfg.common.ckpt_path, ignore_keys=ignore_keys)
+        if cfg.ckpt_path is not None:
+            self.init_from_ckpt(cfg.ckpt_path, ignore_keys=ignore_keys)
         
-        self.loss = LPIPSWithDiscriminator(disc_start=cfg.loss_fn.disc_start, 
-                                           kl_weight=cfg.loss_fn.kl_weight, 
-                                           disc_weight=cfg.loss_fn.disc_weight)
-        self.save_dir = save_dir
-        self.save_period = save_period
+        self.loss = LPIPSWithDiscriminator(disc_start=cfg.disc_start, 
+                                           kl_weight=cfg.kl_weight, 
+                                           disc_weight=cfg.disc_weight)
+        self.save_dir = cfg.ckpt_save_dir
+        self.save_period = cfg.save_period
 
     def init_from_ckpt(self, path:str, ignore_keys:List[str]):
         sd = torch.load(path, map_location="cpu")["state_dict"]
@@ -238,7 +238,7 @@ class AutoEncoder(L.LightningModule):
         return self.log_dict
 
     def configure_optimizers(self):
-        lr = self.cfg.common.lr
+        lr = self.cfg.lr
         opt1 = torch.optim.Adam(list(self.encoder.parameters())+
                                list(self.decoder.parameters())+
                                list(self.quant_conv.parameters())+

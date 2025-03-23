@@ -1,54 +1,92 @@
-from .dotdict import DotDict
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional
 
-diffusion_data_config = DotDict({
-    "train": {
-        "img_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/train/img",
-        "sketch_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/train/cathode",
-        "bsz": 4,
-        "transform": {"resize_height": 256,
-                      "resize_width": 256,
-                      "hflip": 0.5,
-                      "vflip": 0.5,
-                      "rot90": 0.5},
+@dataclass
+class TransformConfig:
+    resize_height: int
+    resize_width: int
+    hflip: Optional[float] = None
+    vflip: Optional[float] = None
+    rot90: Optional[float] = None
 
-        "normalize_mean": [0.5, 0.5, 0.5],
-        "normalize_std": [0.5, 0.5, 0.5],
+@dataclass
+class DatasetConfig:
+    img_dir: str
+    sketch_dir: str
+    bsz: int
+    normalize_mean: List[float]
+    normalize_std: List[float]
+    transform: TransformConfig
 
-    },
-    "test": {
-        "img_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/test/img",
-        "sketch_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/test/cathode",
-        "bsz": 4,
-        "normalize_mean": [0.5, 0.5, 0.5],
-        "normalize_std": [0.5, 0.5, 0.5],
-        "transform": {"resize_height": 256,
-                      "resize_width": 256},        
-    }
+@dataclass
+class DatasetConfig:
+    img_dir: str
+    bsz: int
+    normalize_mean: List[float]
+    normalize_std: List[float]
+    transform: TransformConfig
 
-})
+@dataclass
+class AutoencoderDataConfig:
+    train: DatasetConfig
+    test: DatasetConfig
 
-autoencoder_data_config = DotDict({
-    "train": {
-        "img_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/train/img",
-        "bsz": 8,
-        "transform": {"resize_height": 256,
-                      "resize_width": 256,
-                      "hflip": 0.5,
-                      "vflip": 0.5,
-                      "rot90": 0.5},
+@dataclass
+class DiffusionDataConfig:
+    train: DatasetConfig
+    test: DatasetConfig
 
-        "normalize_mean": [0.5, 0.5, 0.5],
-        "normalize_std": [0.5, 0.5, 0.5],
-    },
+if __name__ == "__main__":
+    diffusion_data_config = DiffusionDataConfig(
+        train=DatasetConfig(
+            img_dir="",
+            sketch_dir="",
+            bsz=4,
+            normalize_mean=[0.5, 0.5, 0.5],
+            normalize_std=[0.5, 0.5, 0.5],
+            transform=TransformConfig(
+                resize_height=256,
+                resize_width=256,
+                hflip=0.5,
+                vflip=0.5,
+                rot90=0.5
+            )
+        ),
+        test=DatasetConfig(
+            img_dir="",
+            sketch_dir="",
+            bsz=4,
+            normalize_mean=[0.5, 0.5, 0.5],
+            normalize_std=[0.5, 0.5, 0.5],
+            transform=TransformConfig(
+                resize_height=256,
+                resize_width=256
+            )
+        )
+    )
 
-    "test": {
-        "img_dir": "/aidata01/core_impingement/data/StableDiffusion/Split/test/img",
-        "bsz": 8,
-        "normalize_mean": [0.5, 0.5, 0.5],
-        "normalize_std": [0.5, 0.5, 0.5],
-        "transform": {"resize_height": 256,
-                      "resize_width": 256},        
-    }
-
-}
-)
+    autoencoder_data_config = AutoencoderDataConfig(
+        train=DatasetConfig(
+            img_dir="",
+            bsz=8,
+            normalize_mean=[0.5, 0.5, 0.5],
+            normalize_std=[0.5, 0.5, 0.5],
+            transform=TransformConfig(
+                resize_height=256,
+                resize_width=256,
+                hflip=0.5,
+                vflip=0.5,
+                rot90=0.5
+            )
+        ),
+        test=DatasetConfig(
+            img_dir="",
+            bsz=8,
+            normalize_mean=[0.5, 0.5, 0.5],
+            normalize_std=[0.5, 0.5, 0.5],
+            transform=TransformConfig(
+                resize_height=256,
+                resize_width=256
+            )
+        )
+    )

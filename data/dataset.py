@@ -11,29 +11,7 @@ from transformers import PreTrainedTokenizer
 import torch
 from albumentations.pytorch import ToTensorV2
 
-from .data_utils import get_tf_for_sketch, get_tf_for_ae
-
-def load_img_list(root_dir):
-    data_list = []
-    fmts = ["jpg", "JPG", "jpeg", "JPEG", "png", "PNG"]
-    for fmt in fmts:
-        data_list.extend(glob(os.path.join(root_dir, f"*.{fmt}")))
-    return data_list
-
-def check_pair(list_1:List[str], list_2:List[str]):
-    # This function returns True if list_1 and list_2 have same filename list.
-    assert len(list_1) == len(list_2), "Two lists have the different lengths of list"
-
-    hashtbl = set()
-
-    for file_path in list_1:
-        hashtbl.add(os.path.splitext(os.path.basename(file_path))[0])
-    
-    for file_path in list_2:
-        file_name = os.path.splitext(os.path.basename(file_path))[0]
-        if file_name not in hashtbl:
-            return False     
-    return True
+from .data_utils import get_tf_for_sketch, get_tf_for_ae, load_img_list, check_pair
 
 class VAEDataset(Dataset):
     def __init__(self, data_dir, transform, normalize_mean, normalize_std):
@@ -125,7 +103,6 @@ class Sketch2ImageDataModule(L.LightningDataModule):
         self.config = config
 
     def prepare_data(self) -> None:
-        
         pass
 
     def setup(self, stage:str=None):

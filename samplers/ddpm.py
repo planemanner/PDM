@@ -7,7 +7,7 @@ class DDPMSampler(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg # => DotDict Object
-        self.v_posterior = 0.0 # weight for choosing posterior variance as sigma = (1-v) * beta_tilde + v * beta
+        self.v_posterior = cfg.v_posterior # weight for choosing posterior variance as sigma = (1-v) * beta_tilde + v * beta
         self.register_precomputed_values()
 
     def register_precomputed_values(self):

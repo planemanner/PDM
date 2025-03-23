@@ -1,107 +1,116 @@
-from lightning.pytorch.strategies import FSDPStrategy, DDPStrategy
-from .dotdict import DotDict
+from dataclasses import dataclass, field
+from typing import Tuple, List
 
-trainer_strategy = DDPStrategy(find_unused_parameters=True)
-latent_dim = 4
-image_size = 256
-context_dim = 768 # CLIP 
-image_channels = 3
-attn_resolutions = [16, 8]
-ae_middle_channels = 128
-ae_ch_mult = (1, 2, 4 , 4)
-ae_n_res_block = 2
+IMAGE_SIZE = 256
+ATTN_RESOL = (16, 8)
+CONTEXT_DIM = 768 # CLIP 768
+LATENT_DIM = 4
+AE_CH_MULT = (1, 2, 4, 4)
+AE_N_RES_BLOCKS = 2
+AE_MIDDLE_CH = 128
+IMG_CHANNELS = 3
 
-trainer_diff_cfg = DotDict({"accelerator": "gpu", # cpu, gpu, tpu, auto
-                    "devices": [0], # 'auto', List[int], int, "0, 1", -1 ...
-                    "precision": "32", # int or str like this example.
-                    "strategy": trainer_strategy,
-                    "max_epochs": 500, 
-                    "limit_val_batches":1
-                    })
+@dataclass
+class UNetConfig:
+    middle_channels: int = 192
+    in_channels: int = LATENT_DIM
+    out_channels: int = LATENT_DIM
+    ch_mult: Tuple[int] = (1, 2, 2, 4, 4, 4)
+    resolution: int = IMAGE_SIZE // 8
+    dropout : float = 0.0
+    attn_type: str = 'vanilla'
+    resample_with_conv: bool = True
+    n_res_blocks : int = 2
+    use_time_step: bool = True
+    attn_resolution : Tuple[int] = ATTN_RESOL
+    transformer_depth: int = 1
+    context_dim : int = CONTEXT_DIM
+    use_spatial_transformer : bool = True
+    num_head_channels : int = 32
+    resblock_updwon: bool = False
 
-trainer_ae_cfg = DotDict({"accelerator": "gpu", # cpu, gpu, tpu, auto
-                  "devices": [0], # 'auto', List[int], int, "0, 1", -1 ...
-                  "precision": "32", # int or str like this example.
-                  "strategy": trainer_strategy,
-                  "max_epochs": 500,
-                  "limit_val_batches":1
-                  })
+@dataclass
+class AeEncoderConfig:
+    in_channels : int = IMG_CHANNELS
+    middle_channels : int = AE_MIDDLE_CH
+    temb_ch : int = 0
+    n_res_blocks : int = AE_N_RES_BLOCKS
+    ch_mult : Tuple[int] = AE_CH_MULT
+    attn_resolution : Tuple[int] = ATTN_RESOL
+    dropout : float = 0.0
+    resamp_with_conv: bool = True
+    resolution: int = IMAGE_SIZE
+    z_channels : int = LATENT_DIM
+    double_z: bool = True
+    user_linear_attn: bool = False
+    attn_type : str = "vanilla"
 
-conditioner_config = DotDict({"prompt_type": "image",
-                      "model_name": "",
-                      })
+@dataclass
+class AeDecoderConfig:
+    out_channels : int = IMG_CHANNELS
+    middle_channels : int = AE_MIDDLE_CH
+    temb_ch : int = 0
+    n_res_blocks : int = AE_N_RES_BLOCKS
+    ch_mult : Tuple[int] = AE_CH_MULT
+    attn_resolution : Tuple[int] = ATTN_RESOL
+    dropout : float = 0.0
+    resamp_with_conv: bool = True
+    resolution: int = IMAGE_SIZE
+    z_channels : int = LATENT_DIM
+    tanh_out : bool = True
+    give_pre_end: bool = False
+    double_z: bool = True
+    user_linear_attn: bool = False
+    attn_type : str = "vanilla"
 
-unet_config = DotDict({"middle_channels":192,
-                       "in_channels": latent_dim, 
-                       "out_channels": latent_dim,
-                       "ch_mult": (1, 2, 2, 4, 4, 4),
-                       "use_timestep": True,
-                       "resolution": image_size // 8,
-                       "n_res_blocks": 2,
-                       "dropout": 0.0,
-                       "attn_type": 'vanilla',
-                       "attn_resolutions": attn_resolutions,
-                       "resamp_with_conv": True,
-                       "transformer_depth": 1,
-                       "context_dim": context_dim,
-                       "use_spatial_transformer": True,
-                       "num_head_channels": 32,
-                       "resblock_updown": False,
-                       "lr": 1e-4,
-                       "mode": "train",
-                       "sample_save_dir": "",
-                       "use_step_embed": False})
+@dataclass
+class ContextConfig:
+    context_type: str = "mask"
+    model_name : str = "openai/clip-vit-base-patch32"
 
-sampler_config = DotDict({"sampler_type": "ddim",
-                          "clip_denoised": True,
-                          "log_every_t": 0, 
-                          "image_size": image_size,
-                          "in_channels": image_channels,
-                          "use_ema": True,
-                          "v_posterior": 0.0,
-                          "original_elbo_weight": 0.0,
-                          "l_simple_weight": 1.0,
-                          "n_steps": 1000,
-                          "linear_start": 1e-4,
-                          "linear_end": 2e-2})
+@dataclass
+class AutoEncoderConfig:
+    vae_type : str = "kl_vae"
+    lr: float = 4.5e-6
+    ckpt_path : str = ""
+    embed_dim : int = 4
+    disc_weight : float = 0.5
+    disc_start: int = 50001
+    kl_weight: float = 1e-6
+    encoder : AeEncoderConfig = field(default_factory=AeEncoderConfig)
+    decoder : AeDecoderConfig = field(default_factory=AeDecoderConfig)
+    ckpt_save_dir : str = ""
+    save_period : int = 50
 
-flow_sampler_config = DotDict({"shortcut_length": 7})
+@dataclass
+class FlowConfig:
+    shortcut_length: int = 7
+    n_steps: int = 128
 
-ae_config = DotDict({"vae_type": "kl_vae",
-             "encoder": {'in_channels': image_channels,
-                         'middle_channels': ae_middle_channels,
-                         'temb_ch': 0,
-                         'n_res_blocks': ae_n_res_block,
-                         'ch_mult': ae_ch_mult,
-                         'attn_resolutions': attn_resolutions,
-                         'dropout': 0.0,
-                         'resamp_with_conv': True,
-                         'resolution': image_size,
-                         'z_channels': latent_dim,
-                         'double_z': True, 
-                         'user_linear_attn': False,
-                         'attn_type': 'vanilla'},
+@dataclass
+class DDConfig:
+    image_size : int = IMAGE_SIZE
+    in_channels: int = IMG_CHANNELS
+    n_steps: int = 1000
+    linear_start: float = 1e-4
+    linear_end: float = 2e-2
+    v_posterior: float = 0.0
+    DD_TYPE :str = "ddim"
 
-            "decoder": {'out_channels': image_channels,
-                        'middle_channels': ae_middle_channels,
-                        'n_res_blocks': ae_n_res_block,
-                        'temb_ch': 0,
-                        'ch_mult': ae_ch_mult,
-                        'attn_resolutions': attn_resolutions,
-                        'dropout': 0.0,
-                        'resamp_with_conv': True,
-                        'resolution': image_size,
-                        'z_channels': latent_dim,
-                        'tanh_out': True,
-                        'give_pre_end' : False,
-                        'user_linear_attn': False,
-                        'attn_type': 'vanilla'},
+@dataclass
+class DiffusionConfig:
+    unet: UNetConfig = field(default_factory=UNetConfig)
+    sample_save_dir: str = ""
+    diffusion_ckpt_save_dir: str = ""
+    lr: float = 1e-4
+    ae : AutoEncoderConfig = field(default_factory=AutoEncoderConfig)
+    ae_ckpt_path : str = ""
+    sampler_type : str = "flow-matching"
+    context : ContextConfig = field(default_factory=ContextConfig)
+    save_period: int = 50
 
-                        "common": {"embed_dim": latent_dim,
-                                   "ckpt_path": "",
-                                   "lr": 4.5e-6},
-                                
-                        "loss_fn": {"disc_start": 50001,
-                                    "kl_weight": 1e-6,
-                                    "disc_weight": 0.5},
-                                    })
+
+if __name__ == "__main__":
+    cfg = DiffusionConfig()
+    cfg.sampler_type = 'ddim'
+    print(cfg.sampler_type)

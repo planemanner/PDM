@@ -50,6 +50,16 @@ def get_module(cfg, module_type):
     else:
         raise NotImplementedError("Check the 'module_type' argument. ")
 
+def get_conditioner(context_cfg):
+    if context_cfg.context_type == "text":
+        # CLIP Text Encoder
+        return 
+    elif context_cfg.context_type == "mask":
+        # CLIP Image Encoder
+        return ImagePrompter(context_cfg)
+    else:
+        raise ValueError("Please give correct context type. Currently, context can be one of types along 'text' and 'mask' ")
+
 def disable_model_training(model: Optional[nn.Module] = None) -> None:
     if model is None:
         return None
