@@ -15,6 +15,29 @@
   - Since this is the first project using pytorch lightning, many parts are not graceful.
   - So, some migrations are needed
 
+- If you want to see the part of implementation for [ICLR 2025](https://arxiv.org/pdf/2410.12557), please see [ShortCutSampler](samplers/shortcut.py) and [Diffusion Training Step](diffusion.py)
+```python
+# diffusion.py [Line 60-79]
+            d, d_idx = self.sampler.sample_d(len(images), self.device)
+            t = self.sampler.sample_t(len(images), d_idx, self.device)
+            
+            d0 = torch.zeros_like(d, device=self.device)
+            x0 = torch.randn_like(z).to(self.device)
+            x_t = (1-t)[:, None, None, None] * x0 + t[:, None, None, None] * z
+            flow_labels = z - x0
+
+            with torch.no_grad():
+                x_t_plus_d, t_plus_d, s_first = self.sampler.shortcut_step(self.unet, x_t, t, d, conds)
+                _, _, s_second = self.sampler.shortcut_step(self.unet, x_t_plus_d, t_plus_d, d, conds)
+                s_second = torch.clip(s_second, -4, 4)
+                s_target = 0.5 * (s_first + s_second)
+            
+            x_t_plus_d0, _, s_0 = self.sampler.shortcut_step(self.unet, x_t, t, d0, conds)
+            _, _, self_consistency = self.sampler.shortcut_step(self.unet, x_t_plus_d0, t, 2 * d, conds)
+            loss = F.mse_loss(s_0, flow_labels) + F.mse_loss(self_consistency, s_target)
+            self.log('TRAIN_LOSS', loss.item(), prog_bar=True, on_step=True, on_epoch=True)
+            return loss
+```
 - Current version's prompt for generation is "Binary Mask".
 # Update
 - Configuration 정리
