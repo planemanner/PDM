@@ -1,6 +1,6 @@
 from torch import nn
 import torch
-from typing import Tuple
+from typing import Tuple, List
 from tqdm import tqdm
 
 class DDPMSampler(nn.Module):
@@ -58,7 +58,9 @@ class DDPMSampler(nn.Module):
         noise = torch.randn_like(xt, device=xt.device)
         return self.one_over_alphas[t][:, None, None, None] * (xt - self.betas[t][:, None, None, None] / self.sqrt_one_minus_alphas_cumprod[t][:, None, None, None] * pred_eps) + torch.sqrt(self.betas[t][:, None, None, None]) * noise
     
-    def sampling(self, model, image_shape: Tuple[int], cond=None, clamp:bool=True):
+    def sampling(self, model, 
+                 image_shape: Tuple[int], 
+                 cond=None, clamp:bool=True):
         xt = torch.randn(image_shape, device=self.device)
 
         for step_i in tqdm(range(self.cfg.n_steps, -1, -1), desc="Sampling..."):

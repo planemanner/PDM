@@ -62,17 +62,36 @@ class ShortcutFlowSampler(nn.Module):
                  model: nn.Module,
                  latent_shape: Tuple[int, int, int, int],
                  prompts: torch.FloatTensor, 
+                 uncond_prompts: Optional[torch.FloatTensor] = None,
+                 cfg_weight: float=7.5,
                  n_steps: int = 64) -> torch.Tensor:
 
         assert n_steps <= self.max_steps
         bsz = latent_shape[0]
         device = prompts.device
-        x_t = torch.randn(*latent_shape, device=device)
-        t = torch.zeros(bsz, device=device)
-        d = torch.tensor([self.shortcut_lengths[0]], device=device).expand(bsz)
+        latent_shape = list(latent_shape)
+        
+        if uncond_prompts is not None:
+
+            latent_shape[0] *= 2
+            x_t = torch.randn(latent_shape, device=device)
+            combined_prompts = torch.cat([prompts, uncond_prompts])
+            t = torch.zeros(2 * bsz, device=device)
+            d = torch.tensor([self.shortcut_lengths[0]], device=device).expand(2 * bsz)            
+        else:
+            x_t = torch.randn(*latent_shape, device=device)
+            t = torch.zeros(bsz, device=device)
+            d = torch.tensor([self.shortcut_lengths[0]], device=device).expand(bsz)
+            combined_prompts = prompts
 
         for i in range(n_steps):
             
-            x_t, t, model_output = self.shortcut_step(model, x_t, t, d, prompts)
-        
-        return x_t
+            x_t, t, model_output = self.shortcut_step(model, x_t, t, d, combined_prompts)
+            if uncond_prompts is not None:
+                cond_x_t, uncond_x_t = x_t.chunk(2)
+                cond_x_t = uncond_x_t + cfg_weight * (cond_x_t - uncond_x_t)
+                x_t = torch.cat([cond_x_t, uncond_x_t])
+        if uncond_prompts is not None:
+            return x_t[:bsz, ...]
+        else:
+            return x_t

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+from typing import List, Optional
 
 @dataclass
 class TransformConfig:
@@ -8,6 +8,7 @@ class TransformConfig:
     hflip: Optional[float] = None
     vflip: Optional[float] = None
     rot90: Optional[float] = None
+    cond_drop_rate: float
 
 @dataclass
 class DatasetConfig:
@@ -49,7 +50,8 @@ if __name__ == "__main__":
                 resize_width=256,
                 hflip=0.5,
                 vflip=0.5,
-                rot90=0.5
+                rot90=0.5,
+                cond_drop_rate=0.25
             )
         ),
         test=DatasetConfig(

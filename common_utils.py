@@ -68,6 +68,13 @@ def disable_model_training(model: Optional[nn.Module] = None) -> None:
         param.requires_grad = False
     model.eval()
 
+def create_zero_images_batch(n, width, height, channels=3):
+    # (n, height, width, channels) 형태의 배열 생성
+    arrays = np.zeros((n, height, width, channels), dtype=np.uint8)
+    
+    # 각 배열을 PIL Image로 변환
+    images = [Image.fromarray(array) for array in arrays]
+    return images
 
 class EMAModel(nn.Module):
     def __init__(self, model: nn.Module, decay=0.9999):

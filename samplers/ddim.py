@@ -1,6 +1,8 @@
-from .ddpm import DDPMSampler
 import torch
 from tqdm import tqdm
+from typing import Optional
+
+from .ddpm import DDPMSampler
 
 class DDIMSampler(DDPMSampler):
     def __init__(self, cfg):
@@ -30,7 +32,17 @@ class DDIMSampler(DDPMSampler):
 
         return xt_prev
     
-    def sampling(self, model, latent_shape, cond, n_steps=None, clamp:bool=False):
+    def sampling(self, model, 
+                 latent_shape, 
+                 cond: torch.FloatTensor, 
+                 uncond: Optional[torch.FloatTensor]=None,
+                 n_steps: Optional[int]=None, 
+                 clamp:bool = False,
+                 cfg_weight: float=7.5):
+        """
+        latent_shape : (b, c, h, w)
+
+        """
         if n_steps is None:
             n_steps = self.cfg.n_steps
             Warning('You are trying to do sampling with full steps. You cannot benefit of DDIM sampling')
@@ -41,18 +53,37 @@ class DDIMSampler(DDPMSampler):
             timesteps.reverse()
         else:
             timesteps = list(range(self.cfg.n_steps - 1, -1, -1))
-            
-        xt = torch.randn(latent_shape, device=cond.device)
         
-        bsz = len(xt)
-        
+        bsz = latent_shape[0]
+        latent_shape = list(latent_shape)
+
+        if uncond is not None:
+            latent_shape[0] *= 2
+            xt = torch.randn(latent_shape, device=cond.device)
+            combined_cond = torch.cat([cond, uncond])
+
+        else:
+            xt = torch.randn(latent_shape, device=cond.device)
+            combined_cond = cond
+
         for i, step_t in enumerate(tqdm(timesteps, desc='DDIM Sampling...')):
-            step_t = torch.full((bsz, ), step_t, device=cond.device, dtype=torch.long)
-            t_prev = timesteps[i+1] if i < len(timesteps)-1 else 0
-            t_prev_tensor = torch.full((bsz,), t_prev, device=cond.device, dtype=torch.long)
-            xt = self.p_sample(model, xt, step_t, t_prev_tensor, cond)
+            if uncond is not None:
+                step_t = torch.full((2 * bsz,), step_t, device=cond.device, dtype=torch.long)
+                t_prev = timesteps[i+1] if i < len(timesteps)-1 else 0
+                t_prev_tensor = torch.full((2 * bsz,), t_prev, device=cond.device, dtype=torch.long)
+                xt = self.p_sample(model, xt, step_t, t_prev_tensor, combined_cond)
+                xt, uncond_xt = xt.chunk(2)
+                guided_xt = uncond_xt + cfg_weight * (xt - uncond_xt)
+                xt = torch.cat([guided_xt, uncond_xt])
+            else:
+                step_t = torch.full((bsz, ), step_t, device=cond.device, dtype=torch.long)
+                t_prev = timesteps[i+1] if i < len(timesteps)-1 else 0
+                t_prev_tensor = torch.full((bsz,), t_prev, device=cond.device, dtype=torch.long)
+                xt = self.p_sample(model, xt, step_t, t_prev_tensor, combined_cond)
             
             if clamp:
                 xt = torch.clamp(xt, -1.0, 1.0)
-                
-        return xt
+        if uncond is not None:
+            return xt[:bsz]
+        else:
+            return xt

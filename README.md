@@ -40,10 +40,7 @@ return loss
 ```
 - Current version's prompt for generation is "Binary Mask".
 # Update
-- Configuration 정리
-  - Dataclass 활용해서 정리함 
-  - 실험 관리를 용이하게 하기 위함.
-- CLI 를 기반으로 실험을 편하게 할 수 있도록 Interface 개선
+- Classifier Free Guidance (CFG) 기능 업데이트
 
 # Requirements
 - Python version : > 3.9

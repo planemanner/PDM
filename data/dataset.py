@@ -10,6 +10,7 @@ from typing import Tuple, List
 from transformers import PreTrainedTokenizer
 import torch
 from albumentations.pytorch import ToTensorV2
+import random 
 
 from .data_utils import get_tf_for_sketch, get_tf_for_ae, load_img_list, check_pair
 
@@ -55,12 +56,16 @@ class ImageTextPairDataset(Dataset):
 class Sketch2ImageDataset(Dataset):
     def __init__(self, img_dir, sketch_dir, 
                  transform : A.BasicTransform, 
-                 normalize_mean: List[float], normalize_std: List[float]):
+                 normalize_mean: List[float], 
+                 normalize_std: List[float],
+                 cond_drop_rate: float=0.0):
         
         # image and sketch must consist of a pair.
         self.img_list = load_img_list(img_dir)
         self.sketch_list = load_img_list(sketch_dir)
         self.sketch_dir = sketch_dir
+        self.cond_drop_rate = cond_drop_rate
+
         if not check_pair(self.img_list, self.sketch_list):
             raise FileNotFoundError('Image and sketch lists are not matched.')
 
@@ -81,6 +86,12 @@ class Sketch2ImageDataset(Dataset):
             img = transformed['image']
             img = self.totensor(image=self.normalization(image=img)['image'])['image']
             sketch = transformed['mask']
+            # for classifier free guidance
+            bsz = len(sketch)
+            n_drop = int(self.cond_drop_rate * bsz)
+            maskout_ids = random.sample([i for i in range(bsz)], n_drop)
+            if len(maskout_ids) > 0:
+                sketch[maskout_ids, ...] = 0.0
         return img, sketch
 
     def __len__(self):
@@ -117,11 +128,11 @@ class Sketch2ImageDataModule(L.LightningDataModule):
                                                  
             tf = get_tf_for_sketch(self.config.test, mode='test')
             self.val_set = Sketch2ImageDataset(self.config.test.img_dir, 
-                                                self.config.test.sketch_dir,
-                                                transform=tf,
-                                                normalize_mean=self.config.test.normalize_mean,
-                                                normalize_std=self.config.test.normalize_std
-                                                )
+                                               self.config.test.sketch_dir,
+                                               transform=tf,
+                                               normalize_mean=self.config.test.normalize_mean,
+                                               normalize_std=self.config.test.normalize_std
+                                               )
         if stage == 'test':
             tf = get_tf_for_sketch(self.config.test, mode='test')
             self.test_set = Sketch2ImageDataset(self.config.test.img_dir, 

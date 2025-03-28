@@ -5,6 +5,8 @@ from transformers import CLIPModel, CLIPImageProcessor
 from PIL import Image
 from typing import List, Tuple
 import requests
+from torch.nn import functional as F
+
 from .utils import freeze_model
 
 class Conditioner(nn.Module, ABC):
@@ -26,7 +28,7 @@ class ImagePrompter(nn.Module):
         freeze_model(self.model)
 
     @torch.no_grad()
-    def forward(self, prompt_images: List[Image.Image]) -> Tuple[torch.FloatTensor, Image.Image]:
+    def forward(self, prompt_images: List[Image.Image], latent_size: List[int]=(32, 32)) -> Tuple[torch.FloatTensor, Image.Image]:
         # 이미지를 전처리하여 모델 입력 형식으로 변환
         inputs = self.processor(images=prompt_images, return_tensors="pt")
         device = self.model.device  # Assuming self.model.device is set correctly
@@ -44,7 +46,7 @@ class ImagePrompter(nn.Module):
 
         # (B, N, C) → (B, C, H, W)
         feature_map = patch_embeddings.permute(0, 2, 1).reshape(B, C, H, W)
-        
+        feature_map = F.interpolate(feature_map, latent_size)
         return feature_map  # (B, C, H, W)
 
 if __name__ == "__main__":

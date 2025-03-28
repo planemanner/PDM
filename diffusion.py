@@ -1,6 +1,6 @@
 import lightning as L
 from PIL import Image
-from common_utils import disable_model_training, tensor2images, save_grid, get_conditioner
+from common_utils import disable_model_training, tensor2images, save_grid, get_conditioner, create_zero_images_batch
 import torch
 from torch.nn import functional as F
 from typing import List
@@ -17,6 +17,7 @@ class StableDiffusion(L.LightningModule):
         
         self.unet = UNetModel(diff_cfg.unet)
         self.vae = AutoEncoder(diff_cfg.ae)
+        self.unet_input_channels = diff_cfg.unet.in_channels
 
         vae_state_dict = torch.load(diff_cfg.ae_ckpt_path, map_location="cpu")
         if "state_dict" in vae_state_dict:
@@ -88,11 +89,29 @@ class StableDiffusion(L.LightningModule):
             save_grid(decoded, save_dir)
 
     @torch.no_grad()
-    def generate_sketch2image(self, prompts: List[Image.Image], latent_shape: List[int]=[4, 32, 32]) -> torch.IntTensor:
+    def generate_sketch2image(self, prompts: List[Image.Image], 
+                              latent_shape: List[int]=[32, 32],
+                              cfg_weight: float=7.5,
+                              n_steps: int = 128,
+                              use_cfg: bool=True) -> torch.IntTensor:
         
-        conds = self.conditioner(prompts)
-        latent_shape = [len(conds)] + latent_shape 
-        denoised_z = self.sampler.sampling(self.unet, latent_shape, conds, n_steps=64)
+        conds = self.conditioner(prompts, latent_shape)
+
+        if use_cfg:
+            w, h = prompts[0].size
+            uncond_prompts = create_zero_images_batch(len(prompts), w, h)
+            unconds = self.conditioner(uncond_prompts, latent_shape)
+        else:
+            unconds = None
+
+        latent_shape = [len(conds), self.unet_input_channels] + latent_shape 
+        denoised_z = self.sampler.sampling(self.unet, 
+                                           latent_shape, 
+                                           conds,
+                                           unconds, 
+                                           cfg_weight=cfg_weight,
+                                           n_steps=n_steps)
+        
         decoded = self.vae.decode(denoised_z) # Tensor Images
         decoded = tensor2images(decoded) # 8-bit tensors
         
