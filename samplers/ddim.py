@@ -10,10 +10,18 @@ class DDIMSampler(DDPMSampler):
         super().__init__(cfg)
         self.eta = 0.0
 
-    def p_sample(self, model, xt, t, t_prev, cond=None) -> torch.FloatTensor:
+    def p_sample(self, model, xt, t, t_prev, cond=None, uncond=None, cfg_weight=7.5) -> torch.FloatTensor:
         # Deterministic Sampling Only.
-        pred_eps = model(xt, t, context=cond)
-        pred_x0  = (xt - self.sqrt_one_minus_alphas_cumprod[t][:, None, None, None] * pred_eps) / self.sqrt_alphas_cumprod[t][:, None, None, None]
+
+        if uncond is None:
+            pred_eps = model(xt, t, context=cond)
+            pred_x0  = (xt - self.sqrt_one_minus_alphas_cumprod[t][:, None, None, None] * pred_eps) / self.sqrt_alphas_cumprod[t][:, None, None, None]
+        else:
+            combined_cond = torch.cat([cond, uncond])
+            pred_eps = model(xt, t, context=combined_cond)
+            cond_eps, uncond_eps = pred_eps.chunk(2)
+            guided_eps = uncond_eps + cfg_weight * (cond_eps - uncond_eps)
+            pred_x0 = (xt - self.sqrt_one_minus_alphas_cumprod[t][:, None, None, None] * torch.cat([guided_eps, guided_eps])) / self.sqrt_alphas_cumprod[t][:, None, None, None]
 
         alpha_cumprod_t = self.alphas_cumprod[t][:, None, None, None]
         alpha_cumprod_t_prev = self.alphas_cumprod[t_prev][:, None, None, None]
@@ -25,13 +33,14 @@ class DDIMSampler(DDPMSampler):
         
         c1 = torch.sqrt(alpha_cumprod_t_prev)
         c2 = torch.sqrt(1 - alpha_cumprod_t_prev - sigma_t**2)
+
         if self.eta > 0.0:
             xt_prev = c1 * pred_x0 + c2 * pred_eps + sigma_t * noise
         else:
             xt_prev = c1 * pred_x0 + c2 * pred_eps
 
         return xt_prev
-    
+
     def sampling(self, model, 
                  latent_shape, 
                  cond: torch.FloatTensor, 
@@ -59,30 +68,25 @@ class DDIMSampler(DDPMSampler):
 
         if uncond is not None:
             latent_shape[0] *= 2
-            xt = torch.randn(latent_shape, device=cond.device)
-            combined_cond = torch.cat([cond, uncond])
 
-        else:
-            xt = torch.randn(latent_shape, device=cond.device)
-            combined_cond = cond
-
+        xt = torch.randn(latent_shape, device=cond.device)
+            
         for i, step_t in enumerate(tqdm(timesteps, desc='DDIM Sampling...')):
             if uncond is not None:
                 step_t = torch.full((2 * bsz,), step_t, device=cond.device, dtype=torch.long)
                 t_prev = timesteps[i+1] if i < len(timesteps)-1 else 0
                 t_prev_tensor = torch.full((2 * bsz,), t_prev, device=cond.device, dtype=torch.long)
-                xt = self.p_sample(model, xt, step_t, t_prev_tensor, combined_cond)
-                xt, uncond_xt = xt.chunk(2)
-                guided_xt = uncond_xt + cfg_weight * (xt - uncond_xt)
-                xt = torch.cat([guided_xt, uncond_xt])
+                xt = self.p_sample(model, xt, step_t, t_prev_tensor, cond, uncond, cfg_weight)
+                
             else:
                 step_t = torch.full((bsz, ), step_t, device=cond.device, dtype=torch.long)
                 t_prev = timesteps[i+1] if i < len(timesteps)-1 else 0
                 t_prev_tensor = torch.full((bsz,), t_prev, device=cond.device, dtype=torch.long)
-                xt = self.p_sample(model, xt, step_t, t_prev_tensor, combined_cond)
+                xt = self.p_sample(model, xt, step_t, t_prev_tensor, cond)
             
             if clamp:
                 xt = torch.clamp(xt, -1.0, 1.0)
+                
         if uncond is not None:
             return xt[:bsz]
         else:

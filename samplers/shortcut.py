@@ -49,13 +49,23 @@ class ShortcutFlowSampler(nn.Module):
                       x_t: torch.FloatTensor, 
                       t: torch.IntTensor, 
                       d: torch.FloatTensor,
-                      prompts: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.IntTensor]:
-        model_output = model(x_t, t, d, prompts) # s_{\theta}(x_{t}, t, d)
-        """
-        Refer to Heun Method.
-        """
-        x_t_plus_d = x_t + 0.5 * d[:, None, None, None] * model_output
-        return x_t_plus_d, t + d, model_output
+                      prompts: torch.FloatTensor,
+                      uncond_prompts: Optional[torch.FloatTensor] = None,
+                      cfg_weight: float=7.5) -> Tuple[torch.FloatTensor, torch.IntTensor]:
+        
+        if uncond_prompts is None:
+            model_output = model(x_t, t, d, prompts) # s_{\theta}(x_{t}, t, d)
+            x_t_plus_d = x_t + d[:, None, None, None] * model_output
+            return x_t_plus_d, t + d, model_output
+        else:
+            combined_prompts = torch.cat([prompts, uncond_prompts])
+            model_output = model(x_t, t, d, combined_prompts) # s_{\theta}(x_{t}, t, d)
+            cond_outputs, uncond_outputs = model_output.chunk(2)
+            guidance_outputs = uncond_outputs + cfg_weight * (cond_outputs - uncond_outputs)
+
+            x_t_plus_d = x_t + d[:, None, None, None] * torch.cat([guidance_outputs, guidance_outputs])
+
+            return x_t_plus_d, t + d, guidance_outputs
     
     @torch.no_grad()
     def sampling(self, 
@@ -75,22 +85,19 @@ class ShortcutFlowSampler(nn.Module):
 
             latent_shape[0] *= 2
             x_t = torch.randn(latent_shape, device=device)
-            combined_prompts = torch.cat([prompts, uncond_prompts])
+            # combined_prompts = torch.cat([prompts, uncond_prompts])
             t = torch.zeros(2 * bsz, device=device)
             d = torch.tensor([self.shortcut_lengths[0]], device=device).expand(2 * bsz)            
         else:
             x_t = torch.randn(*latent_shape, device=device)
             t = torch.zeros(bsz, device=device)
             d = torch.tensor([self.shortcut_lengths[0]], device=device).expand(bsz)
-            combined_prompts = prompts
+            # combined_prompts = prompts
 
         for i in range(n_steps):
             
-            x_t, t, model_output = self.shortcut_step(model, x_t, t, d, combined_prompts)
-            if uncond_prompts is not None:
-                cond_x_t, uncond_x_t = x_t.chunk(2)
-                cond_x_t = uncond_x_t + cfg_weight * (cond_x_t - uncond_x_t)
-                x_t = torch.cat([cond_x_t, uncond_x_t])
+            x_t, t, model_output = self.shortcut_step(model, x_t, t, d, prompts, uncond_prompts, cfg_weight)
+
         if uncond_prompts is not None:
             return x_t[:bsz, ...]
         else:

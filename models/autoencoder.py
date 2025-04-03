@@ -8,7 +8,7 @@ from typing import TypedDict, List
 from PIL import Image
 from taming.modules.losses.vqperceptual import LPIPS, NLayerDiscriminator, hinge_d_loss, vanilla_d_loss, weights_init, adopt_weight
 import lightning as L
-
+from dataclasses import asdict
 # from taming.modules.losses.vqperceptual import *  # TODO: taming dependency yes/no?
 
 class BatchDict(TypedDict):
@@ -130,8 +130,8 @@ class AutoEncoder(L.LightningModule):
         self.cfg = cfg
         self.automatic_optimization = False
 
-        self.encoder = Encoder(**cfg.encoder)
-        self.decoder = Decoder(**cfg.decoder)
+        self.encoder = Encoder(**asdict(cfg.encoder))
+        self.decoder = Decoder(**asdict(cfg.decoder))
 
         self.quant_conv = torch.nn.Conv2d(2*cfg.encoder.z_channels, 2 * cfg.embed_dim, 1)
         self.post_quant_conv = torch.nn.Conv2d(cfg.embed_dim, cfg.decoder.z_channels, 1)

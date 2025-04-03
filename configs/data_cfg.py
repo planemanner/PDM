@@ -8,7 +8,7 @@ class TransformConfig:
     hflip: Optional[float] = None
     vflip: Optional[float] = None
     rot90: Optional[float] = None
-    cond_drop_rate: float
+    cond_drop_rate: float = 0.0
 
 @dataclass
 class DatasetConfig:
@@ -51,7 +51,7 @@ if __name__ == "__main__":
                 hflip=0.5,
                 vflip=0.5,
                 rot90=0.5,
-                cond_drop_rate=0.25
+                cond_drop_rate=0.15
             )
         ),
         test=DatasetConfig(

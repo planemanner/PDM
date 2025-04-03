@@ -22,7 +22,7 @@ class UNetConfig:
     resample_with_conv: bool = True
     n_res_blocks : int = 2
     use_time_step: bool = True
-    attn_resolution : Tuple[int] = ATTN_RESOL
+    attn_resolutions : Tuple[int] = ATTN_RESOL
     transformer_depth: int = 1
     context_dim : int = CONTEXT_DIM
     use_spatial_transformer : bool = True
@@ -36,7 +36,7 @@ class AeEncoderConfig:
     temb_ch : int = 0
     n_res_blocks : int = AE_N_RES_BLOCKS
     ch_mult : Tuple[int] = AE_CH_MULT
-    attn_resolution : Tuple[int] = ATTN_RESOL
+    attn_resolutions : Tuple[int] = ATTN_RESOL
     dropout : float = 0.0
     resamp_with_conv: bool = True
     resolution: int = IMAGE_SIZE
@@ -52,14 +52,13 @@ class AeDecoderConfig:
     temb_ch : int = 0
     n_res_blocks : int = AE_N_RES_BLOCKS
     ch_mult : Tuple[int] = AE_CH_MULT
-    attn_resolution : Tuple[int] = ATTN_RESOL
+    attn_resolutions : Tuple[int] = ATTN_RESOL
     dropout : float = 0.0
     resamp_with_conv: bool = True
     resolution: int = IMAGE_SIZE
     z_channels : int = LATENT_DIM
     tanh_out : bool = True
     give_pre_end: bool = False
-    double_z: bool = True
     user_linear_attn: bool = False
     attn_type : str = "vanilla"
 
