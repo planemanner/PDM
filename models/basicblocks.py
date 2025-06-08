@@ -4,7 +4,7 @@ import torch
 import math
 from einops import rearrange
 from abc import abstractmethod
-
+from xformers import memory_efficient_attention, LowerTriangularMask
 from .utils import zero_module
 
 def make_attn(block_in, attn_type):
@@ -107,7 +107,7 @@ class CrossAttention(nn.Module):
         self.out_proj = nn.Linear(dim_head * n_heads, query_dim)
         self.n_heads = n_heads
         self.dim_head = dim_head
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = dropout
         self.constant = 1 / math.sqrt(dim_head)
 
     def forward(self, x: torch.Tensor, context=None):
@@ -119,6 +119,7 @@ class CrossAttention(nn.Module):
                 # Image Prompt
                 b, c, h, w = context.shape
                 context = context.view(b, c, h*w).transpose(1, 2)
+
         else:
             context = x
         
@@ -126,22 +127,27 @@ class CrossAttention(nn.Module):
         # k, v shapes : (b, s, n_head * dim_head)
         k, v = torch.chunk(self.kv_embed(context), 2, dim=-1)
 
-        q = q.view(b, -1, self.n_heads, self.dim_head).transpose(1, 2)
-        k = k.view(b, -1, self.n_heads, self.dim_head).transpose(1, 2)
-        v = v.view(b, -1, self.n_heads, self.dim_head).transpose(1, 2)
+        q, k, v = map(lambda x: x.contiguous().view(b, -1, self.n_heads, self.dim_heads), (q, k, v))
 
-        # sim shape : (b, n_head, x_len, dim_head) X (b, n_head, dim_head, con_len) 
-        # -> (b, n_head, x_len, con_len)
-        sim = q @ k.transpose(-1, -2)
-        sim *= self.constant
+        # q = q.view(b, -1, self.n_heads, self.dim_head).transpose(1, 2)
+        # k = k.view(b, -1, self.n_heads, self.dim_head).transpose(1, 2)
+        # v = v.view(b, -1, self.n_heads, self.dim_head).transpose(1, 2)
 
-        sim = F.softmax(sim, dim=-1)
-        # (b, n_head, x_len, con_len) X (b, n_head, con_len, dim_head) 
-        # -> (b, n_head, x_len, dim_head)
-        output = sim @ v
-        output = output.contiguous().transpose(1, 2).reshape(b, x_len, -1)
-        return self.dropout(self.out_proj(output))
+        # # sim shape : (b, n_head, x_len, dim_head) X (b, n_head, dim_head, con_len) 
+        # # -> (b, n_head, x_len, con_len)
+        # sim = q @ k.transpose(-1, -2)
+        # sim *= self.constant
 
+        # sim = F.softmax(sim, dim=-1)
+        # # (b, n_head, x_len, con_len) X (b, n_head, con_len, dim_head) 
+        # # -> (b, n_head, x_len, dim_head)
+        # output = sim @ v
+        # output = output.contiguous().transpose(1, 2).reshape(b, x_len, -1)
+        # return self.dropout(self.out_proj(output))
+        output = memory_efficient_attention(q, k, v, p=self.dropout)
+        output = output.contiguous().view(b, x_len, self.n_heads * self.dim_head)
+        return self.out_proj(output)
+    
 class SpatialAttention(nn.Module):
     # Single Head
     def __init__(self, in_channels, eps=1e-6):
@@ -159,23 +165,27 @@ class SpatialAttention(nn.Module):
         # q, k, v shapes : (b, c, h, w)
         q, k, v = torch.chunk(self.qkv_embed(x), chunks=3, dim=1)
         
-        q = q.contiguous().view(b, c, h*w)
-        k = k.contiguous().view(b, c, h*w)
-        v = v.contiguous().view(b, c, h*w)
+        q = q.contiguous().view(b, c, h*w).transpose(1, 2)[:, :, None, :]
+        k = k.contiguous().view(b, c, h*w).transpose(1, 2)[:, :, None, :]
+        v = v.contiguous().view(b, c, h*w).transpose(1, 2)[:, :, None, :]
 
         # (b, hw, hw)
-        attn = k.transpose(1, 2) @ q
+        # attn = k.transpose(1, 2) @ q
         
         if causal_mask is not None:
-            # Since we are not using auto-regressive model, this will be skipped in general learning pipelines.
-            mask = torch.ones_like(attn, dtype=torch.bool).triu(1)
-            # Upper triangular components are set to -torch.inf
-            attn.masked_fill_(mask, -torch.inf)
-            
-        attn *= self.constant
-        soft_attn = F.softmax(attn, dim=2)
-        output = (v @ soft_attn).view(b, c, h, w)
-
+            # # Since we are not using auto-regressive model, this will be skipped in general learning pipelines.
+            # mask = torch.ones_like(attn, dtype=torch.bool).triu(1)
+            # # Upper triangular components are set to -torch.inf
+            # attn.masked_fill_(mask, -torch.inf)
+            causal_mask = LowerTriangularMask()
+            output = memory_efficient_attention(q, k, v, p=self.dropout, causal_mask=causal_mask)
+        else:
+            output = memory_efficient_attention(q, k, v, p=self.dropout)    
+        # attn *= self.constant
+        # soft_attn = F.softmax(attn, dim=2)
+        # output = (v @ soft_attn).view(b, c, h, w)
+        # B, HW, 1, C -> B, C, 1, HW -> B, C, H, W
+        output = output.contiguous().permute(0, 3, 2, 1).view(b, c, h, w)
         return residue + self.proj_out(output)
 
 class MultiHeadSelfAttention(nn.Module):
@@ -187,7 +197,7 @@ class MultiHeadSelfAttention(nn.Module):
         self.dim_head = dim_head
         self.constant = 1.0 / math.sqrt(dim_head)
         self.norm = nn.GroupNorm(32, in_channels, eps=1e-6)
-        
+        self.dropout = dropout
         # feedforward
         # I don't know why Stable Diffusion authors apply the dropout in here.
         self.ff = nn.Sequential(*[nn.Linear(n_heads * dim_head, in_channels),
@@ -201,26 +211,30 @@ class MultiHeadSelfAttention(nn.Module):
         bsz, s_len, x_dim = x.shape
         # q, k, v : (bsz, s_len, n_heads * dim_head)
         q, k ,v = torch.chunk(self.qkv_embeds(x), 3, dim=-1)
-
-        q = q.contiguous().view(bsz, s_len, self.n_heads, self.dim_head).transpose(1, 2)
-        k = k.contiguous().view(bsz, s_len, self.n_heads, self.dim_head).transpose(1, 2)
-        # bsz, n_heads, s_len, dim_head
-        v = v.contiguous().view(bsz, s_len, self.n_heads, self.dim_head).transpose(1, 2)
+        q, k, v = map(lambda x: x.contiguous().view(bsz, s_len, self.n_heads, self.dim_head), (q, k, v))
+        # q = q.contiguous().view(bsz, s_len, self.n_heads, self.dim_head).transpose(1, 2)
+        # k = k.contiguous().view(bsz, s_len, self.n_heads, self.dim_head).transpose(1, 2)
+        # # bsz, n_heads, s_len, dim_head
+        # v = v.contiguous().view(bsz, s_len, self.n_heads, self.dim_head).transpose(1, 2)
         
-        # bsz, n_heads, s_len, s_len
-        attn = q @ k.transpose(-1, -2)
-        attn *= self.constant
+        # # bsz, n_heads, s_len, s_len
+        # attn = q @ k.transpose(-1, -2)
+        # attn *= self.constant
 
         if causal_mask is not None:
             # Since we are not using auto-regressive model, this will be skipped in general learning pipelines.
-            mask = torch.ones_like(attn, dtype=torch.bool).triu(1)
-            # Upper triangular components are set to -torch.inf
-            attn.masked_fill_(mask, -torch.inf)
+            # mask = torch.ones_like(attn, dtype=torch.bool).triu(1)
+            # # Upper triangular components are set to -torch.inf
+            # attn.masked_fill_(mask, -torch.inf)
+            causal_mask = LowerTriangularMask()
+            out = memory_efficient_attention(q, k, v, p=self.dropout, causal_mask=causal_mask)
+        else:
+            out = memory_efficient_attention(q, k, v, p=self.dropout)
 
-        attn = F.softmax(attn, dim=-1)
-        # (bsz, n_heads, s_len, s_len) X (bsz, n_heads, s_len, dim_head) -> (bsz, n_heads, s_len, dim_head)
-        out = attn @ v 
-        out = out.transpose(1, 2).contiguous().view(bsz, s_len, self.n_heads * self.dim_head)
+        # attn = F.softmax(attn, dim=-1)
+        # # (bsz, n_heads, s_len, s_len) X (bsz, n_heads, s_len, dim_head) -> (bsz, n_heads, s_len, dim_head)
+        # out = attn @ v 
+        out = out.contiguous().view(bsz, s_len, self.n_heads * self.dim_head)
         return residue + self.ff(out)
 
 class Upsample(nn.Module):

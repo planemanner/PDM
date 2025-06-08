@@ -17,7 +17,7 @@ def train_diffusion(args):
     img_size = diff_cfg.ae.encoder.resolution
     diff_data_cfg = DiffusionDataConfig(train=DatasetConfig(
         img_dir=f"{args.train_dir}/img",
-        sketch_dir=f"{args.train_dir}/mask",
+        prompt_dir=f"{args.train_dir}/mask",
         bsz=args.bsz,
         normalize_mean=[0.5, 0.5, 0.5],
         normalize_std=[0.5, 0.5, 0.5],
@@ -31,7 +31,7 @@ def train_diffusion(args):
     ),
     test=DatasetConfig(
         img_dir=f"{args.test_dir}/img",
-        sketch_dir=f"{args.test_dir}/mask",
+        prompt_dir=f"{args.test_dir}/mask",
         bsz=args.bsz,
         normalize_mean=[0.5, 0.5, 0.5],
         normalize_std=[0.5, 0.5, 0.5],

@@ -1,12 +1,12 @@
 from torch import nn
 import torch
-from typing import Tuple, List
+from typing import Tuple
 from tqdm import tqdm
 
 class DDPMSampler(nn.Module):
     def __init__(self, cfg):
         super().__init__()
-        self.cfg = cfg # => DotDict Object
+        self.cfg = cfg 
         self.v_posterior = cfg.v_posterior # weight for choosing posterior variance as sigma = (1-v) * beta_tilde + v * beta
         self.register_precomputed_values()
 
@@ -33,7 +33,7 @@ class DDPMSampler(nn.Module):
         self.register_buffer('sqrt_one_minus_alphas_cumprod_prev', torch.sqrt(1.0 - alphas_cumprod_prev))
         self.register_buffer('lvlb_weights', lvlb_weights)
         
-    def q_sample(self, x0:torch.FloatTensor, t: int) -> torch.Tensor:
+    def q_sample(self, x0: torch.FloatTensor, t: int) -> torch.Tensor:
         """
         Mathematical Expression 
         => x_{t} ~ q(x_{t}|x_{0}) = N(x_{t};\sqrt{\bar{\alpha}_{t}}x_{0}, \sqrt{1-\bar{\alpha}_{t}}I)

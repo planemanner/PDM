@@ -13,7 +13,7 @@ class TransformConfig:
 @dataclass
 class DatasetConfig:
     img_dir: str
-    sketch_dir: str
+    prompt_dir: str
     bsz: int
     normalize_mean: List[float]
     normalize_std: List[float]
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     diffusion_data_config = DiffusionDataConfig(
         train=DatasetConfig(
             img_dir="",
-            sketch_dir="",
+            prompt_dir="",
             bsz=4,
             normalize_mean=[0.5, 0.5, 0.5],
             normalize_std=[0.5, 0.5, 0.5],

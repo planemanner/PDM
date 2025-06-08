@@ -8,12 +8,7 @@
 # Note
 - In current version, the autoencoder is not VQ-VAE. It is conventional variational auto-encoder.
   - So, unlike original Stable Diffusion model, the autoencoder is trained without EMA update. 
-  - The Wavelet layers will be applied soon.
-
-- Current version is very incomfortable to use most features.
-  - Most configuration files are integrated for convenience and reduction of confusion.
-  - Since this is the first project using pytorch lightning, many parts are not graceful.
-  - So, some migrations are needed
+- This implementation is based on the xformers lib of Meta AI. So, you must use Linux OS to for this repo.
 
 - If you want to see the part of implementation for [ICLR 2025](https://arxiv.org/pdf/2410.12557), please see [ShortCutSampler](samplers/shortcut.py) and [Diffusion Training Step](diffusion.py)
 ```python
@@ -38,9 +33,8 @@ loss = F.mse_loss(s_0, flow_labels) + F.mse_loss(self_consistency, s_target)
 self.log('TRAIN_LOSS', loss.item(), prog_bar=True, on_step=True, on_epoch=True)
 return loss
 ```
+
 - Current version's prompt for generation is "Binary Mask".
-# Update
-- Classifier Free Guidance (CFG) 기능 업데이트
 
 # Requirements
 - Python version : > 3.9
@@ -49,8 +43,13 @@ return loss
 # Usage
 ## Training
 - First, train auto-encoder
-- Second, train unet with flow-matching method or ddpm(ddim)
+  - Before run training script ```train_stage_1.sh``` in ```scripts``` folder, you must carefully setup the config file in ```configs/diffusion_cfg.py``` and ```configs/data_cfg.py```
+    - ```configs/data_cfg.py``` has the train & test directory path arugments and data augmentation related things.
+    - Since this repository is based on PyTorch Lightning modules, training setups like DDP and FSDP depend on Lightning's API and structure. Please check the ```train_stage_1.sh``` & ```trainer.py``` before running.
 
+- Second, train unet with flow-matching method or ddpm(ddim)
+  - Use train_stage_2.sh
+    - Similarily, you must check the data_cfg.py before running this script.
 
 ## To do
 - Update quantitative metrics for validation. (e.g., FID)

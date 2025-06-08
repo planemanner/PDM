@@ -24,6 +24,7 @@ class StableDiffusion(L.LightningModule):
             vae_state_dict = vae_state_dict["state_dict"]        
         self.vae.load_state_dict(vae_state_dict)
         self.conditioner = get_conditioner(diff_cfg.context)
+        self.context_type = diff_cfg.context.context_type
 
         if diff_cfg.sampler_type == "flow-matching":
             self.sampler = ShortcutFlowSampler(FlowConfig)
@@ -44,8 +45,9 @@ class StableDiffusion(L.LightningModule):
     def training_step(self, batch, batch_idx):
         # images : List of float tensors
         # sketches : List of PIL images.
-        images, sketches = batch      
-        conds = self.conditioner(sketches)
+        images, prompts = batch
+        conds = self.conditioner(prompts)
+        
         z = self.vae.encode(images).sample()
 
         if not self.isflowmodel:
@@ -80,13 +82,42 @@ class StableDiffusion(L.LightningModule):
             return loss
 
     def validation_step(self, batch, batch_idx):
-        images, sketches = batch
-        decoded = self.generate_sketch2image(sketches)
-
+        images, prompts = batch
+        if self.context_type == "mask":
+            decoded = self.generate_sketch2image(prompts)
+        else:
+            decoded = self.generate_text2image(prompts)
+        
         if batch_idx == 0 and self.global_rank == 0:
             save_dir = os.path.join(self.sample_save_dir, str(self.current_epoch).zfill(3))
             os.makedirs(save_dir, exist_ok=True)
             save_grid(decoded, save_dir)
+
+    @torch.no_grad()
+    def generate_text2image(self, text_prompts:List[str],
+                                  cfg_weight: float=7.5,
+                                  n_steps: int = 128,
+                                  use_cfg:bool=True,
+                                  latent_shape: List[int, int]=[32, 32]) -> torch.IntTensor:
+        
+        text_conds = self.conditioner(text_prompts)
+
+        if use_cfg:
+            
+            unconds = self.conditioner(["" for _ in range(len(text_prompts))])
+        else:
+            unconds = None
+        
+        denoised_z = self.sampler.sampling(self.unet, 
+                                           latent_shape,
+                                           prompts=text_conds,
+                                           uncond=unconds,
+                                           cfg_weight=cfg_weight,
+                                           n_steps=n_steps
+                                           )
+        decoded = self.vae.decode(denoised_z) # Tensor Images
+        decoded = tensor2images(decoded) # 8-bit tensors
+        return decoded
 
     @torch.no_grad()
     def generate_sketch2image(self, prompts: List[Image.Image], 

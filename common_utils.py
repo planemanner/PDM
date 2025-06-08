@@ -5,7 +5,7 @@ from samplers.ddpm import DDPMSampler
 from samplers.shortcut import ShortcutFlowSampler
 from models.unet import UNetModel
 from models.autoencoder import AutoEncoder
-from models.conditioner import ImagePrompter
+from models.conditioner import ImagePrompter, TextPrompter
 import torch
 from typing import List
 from PIL import Image
@@ -24,12 +24,6 @@ def get_sampler(cfg):
 
 def get_unet(cfg) -> UNetModel:
     return UNetModel(cfg)
-
-def get_conditioner(cfg):
-    if cfg.prompt_type == 'image':
-        return ImagePrompter(cfg)
-    else:
-        raise NotImplementedError('Now, image prompt-type is only implemented')
 
 def get_vae(cfg) -> AutoEncoder:
     return AutoEncoder(cfg)
@@ -53,7 +47,8 @@ def get_module(cfg, module_type):
 def get_conditioner(context_cfg):
     if context_cfg.context_type == "text":
         # CLIP Text Encoder
-        return 
+        return TextPrompter(context_cfg)
+    
     elif context_cfg.context_type == "mask":
         # CLIP Image Encoder
         return ImagePrompter(context_cfg)

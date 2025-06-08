@@ -1,14 +1,11 @@
+import torch
+import torch.nn as nn
+from typing import Tuple, Optional
+
 """
 This is the implementation of the shortcut sampler.
 ICLR 2025, https://arxiv.org/pdf/2410.12557
-"""
 
-import torch
-import torch.nn as nn
-import numpy as np
-from typing import List, Tuple, Optional
-
-"""
 1. ||S_{\theta}(x_{t}, t, d)||=1 인지 Check 필요
 2. d 에 대한 명확한 정의 필요
 3. t, d 값을 sampling 할 때 무슨 관계가 있는 지 확인 필요
@@ -38,11 +35,10 @@ class ShortcutFlowSampler(nn.Module):
         t = t / d_section
         return t
     
-    def sample_d(self, batch_size: int, device: torch.device) -> Tuple[torch.Tensor, int]:
+    def sample_d(self, batch_size: int, device: torch.device) -> Tuple[torch.FloatTensor, int]:
         # You must sample d before sampling t
         d_idx = torch.randint(0, len(self.shortcut_lengths), (batch_size,), device=device)
         d = torch.tensor([self.shortcut_lengths[idx.item()] for idx in d_idx], device=device)
-        
         return d, d_idx
     
     def shortcut_step(self, model: nn.Module, 

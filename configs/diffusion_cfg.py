@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Tuple, List
+from typing import Tuple
 
 IMAGE_SIZE = 256
 ATTN_RESOL = (16, 8)
@@ -66,6 +66,7 @@ class AeDecoderConfig:
 class ContextConfig:
     context_type: str = "mask"
     model_name : str = "openai/clip-vit-base-patch32"
+    max_token_length: int = 128
 
 @dataclass
 class AutoEncoderConfig:
